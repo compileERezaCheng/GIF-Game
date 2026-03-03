@@ -41,7 +41,7 @@ POST {{baseUrl}}/gifs
 Content-Type: application/json
 
 {
-    "playerId": "rest_pok9ir",
+    "playerId": "rest_swb8gv",
     "url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJueW90Z3R6Z3R6Z3R6Z3R6/3o7TKSjP6S7SaVXYJo/giphy.gif"
 }
 
@@ -50,7 +50,7 @@ POST {{baseUrl}}/gifs
 Content-Type: application/json
 
 {
-    "playerId": "rest_wldgpe",
+    "playerId": "rest_rr1ate",
     "url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJueW90Z3R6Z3R6Z3R6Z3R6/26vUAApS6tK/giphy.gif"
 }
 
@@ -70,8 +70,8 @@ POST {{baseUrl}}/votes
 Content-Type: application/json
 
 {
-    "playerId": "rest_pok9ir",
-    "gifId": "b27a68ba-5760-4390-9e69-26c3ac941d09"
+    "playerId": "rest_swb8gv",
+    "gifId": "e156d504-bfba-4a0e-86d4-1a399e701d45"
 }
 
 ### ------------------------------------------------------
