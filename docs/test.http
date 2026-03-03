@@ -1,0 +1,22 @@
+### Ver o estado do jogo
+GET http://localhost:3750/api/game
+
+###
+
+### Ver os jogadores (deve estar vazio no início)
+GET http://localhost:3750/api/players
+
+###
+
+### Adicionar o João (teste)
+POST http://localhost:3750/api/test/join/Joao
+
+###
+
+### Adicionar a Maria (teste)
+POST http://localhost:3750/api/test/join/Maria
+
+###
+
+### Voltar a ver os jogadores (agora já devem lá estar 2!)
+GET http://localhost:3750/api/players
