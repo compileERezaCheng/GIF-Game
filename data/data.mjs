@@ -1,47 +1,68 @@
-// A nossa "Base de Dados" em memória
-const players = new Map(); // Usamos Map porque é mais rápido a procurar por ID do socket
-const game = {
-    status: 'waiting', // pode ser: 'waiting', 'playing', 'voting', 'finished'
-    round: 1,
-    gifsSubmitted: []
-};
+import crypto from 'crypto';
 
-// --- FUNÇÕES DE JOGADORES ---
-
-export function addPlayer(socketId, name = "Anónimo") {
-    const newPlayer = {
-        id: socketId,
-        name: name,
-        score: 0
+export default function init() {
+    const players = new Map(); 
+    const game = {
+        status: 'waiting',
+        round: 1,
+        gifs: new Map(),  
+        votes: new Map()  
     };
-    players.set(socketId, newPlayer);
-    return newPlayer;
-}
 
-export function removePlayer(socketId) {
-    const player = players.get(socketId);
-    if (player) {
-        players.delete(socketId);
+    return {
+        addPlayer, removePlayer, getPlayer, getAllPlayers,
+        updateGameState, getGameState,
+        addGif, updateGif, getGifByPlayer, getAllGifs,
+        setVote, getAllVotes, resetRound
+    };
+
+    function addPlayer(socketId, name = "Anónimo") {
+        const newPlayer = { id: socketId, name: name, score: 0 };
+        players.set(socketId, newPlayer);
+        return newPlayer;
     }
-    return player; // Devolvemos o jogador removido caso seja preciso avisar os outros
-}
 
-export function getPlayer(socketId) {
-    return players.get(socketId);
-}
+    function removePlayer(socketId) {
+        const player = players.get(socketId);
+        if (player) players.delete(socketId);
+        return player; 
+    }
 
-export function getAllPlayers() {
-    // Transforma o Map num Array normal para ser mais fácil de enviar para o Frontend
-    return Array.from(players.values());
-}
+    function getPlayer(socketId) { return players.get(socketId); }
+    function getAllPlayers() { return Array.from(players.values()); }
 
-// --- FUNÇÕES DO JOGO (Para usar mais tarde) ---
+    function updateGameState(newStatus) {
+        game.status = newStatus;
+        return game;
+    }
+    function getGameState() { return game; }
 
-export function updateGameState(newStatus) {
-    game.status = newStatus;
-    return game;
-}
+    function addGif(playerId, url) {
+        const id = crypto.randomUUID(); 
+        const newGif = { id, playerId, url };
+        game.gifs.set(id, newGif);
+        return newGif;
+    }
 
-export function getGameState() {
-    return game;
+    function updateGif(gifId, url) {
+        const gif = game.gifs.get(gifId);
+        if (gif) gif.url = url;
+        return gif;
+    }
+
+    function getGifByPlayer(playerId) { 
+        return Array.from(game.gifs.values()).find(g => g.playerId === playerId); 
+    }
+
+    function getAllGifs() { return Array.from(game.gifs.values()); }
+    function setVote(playerId, gifId) { game.votes.set(playerId, gifId); }
+    function getAllVotes() { return Array.from(game.votes.entries()); }
+
+    function resetRound() {
+        game.gifs.clear();
+        game.votes.clear();
+        game.round += 1;
+        game.status = 'playing';
+        return game;
+    }
 }

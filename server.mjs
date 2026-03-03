@@ -1,20 +1,26 @@
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
-// Agora importamos as DUAS funções
-import { setupSockets, setupRestRoutes } from './web/api/web-api.mjs'; 
+
+import DataInit from './data/data.mjs';
+import ServicesInit from './services/services.mjs';
+import ApiInit from './web/api/web-api.mjs';
 
 const PORT = 3750;
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Ligar as rotas REST para testares
-setupRestRoutes(app);
+const gameData = DataInit();
+const gameServices = ServicesInit(gameData);
+const webApi = ApiInit(gameServices, gameData);
 
-// Ligar os WebSockets
-setupSockets(io);
+app.use(express.json());
+app.use(express.static('web/site'));
+
+webApi.setupRestRoutes(app);
+webApi.setupSockets(io);
 
 server.listen(PORT, () => {
-  console.log('🚀 Servidor a correr! Vai a http://localhost:' + PORT);
+  console.log('🚀 Servidor Online em http://localhost:' + PORT);
 });

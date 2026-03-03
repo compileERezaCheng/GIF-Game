@@ -1,76 +1,96 @@
-// Importamos tudo o que fizemos no ficheiro de dados
-import * as db from '../data/data.mjs';
+import { erroUser, erroJogo, MSG } from '../commons/errors.mjs';
 
-// --- LÓGICA DE JOGADORES ---
-
-export function handlePlayerJoin(socketId, playerName) {
-    const gameState = db.getGameState();
-    
-    // Regra: Se o jogo já estiver na fase de votação, talvez não devesse entrar?
-    // Por agora deixamos entrar, mas já vês como é fácil adicionar regras aqui!
-    const player = db.addPlayer(socketId, playerName);
-    const allPlayers = db.getAllPlayers();
-
-    // Devolvemos um "pacote" com tudo o que a interface vai precisar saber
-    return {
-        success: true,
-        player: player,
-        allPlayers: allPlayers,
-        gameStatus: gameState.status
-    };
-}
-
-export function handlePlayerLeave(socketId) {
-    const removedPlayer = db.removePlayer(socketId);
-    const allPlayers = db.getAllPlayers();
-
-    // Regra de Ouro: Se não sobrar ninguém no jogo, fazemos reset para 'waiting'
-    if (allPlayers.length === 0) {
-        db.updateGameState('waiting');
-        db.getGameState().gifsSubmitted = []; // Limpa os GIFs
-    }
+export default function init(gameData) {
+    if (!gameData) throw new Error("gameData is required");
 
     return {
-        removedPlayer: removedPlayer,
-        allPlayers: allPlayers
+        handlePlayerJoin, handlePlayerLeave, startGame,
+        adicionarGif, alterarGif, votar, obterGifs, 
+        obterVotosPorGif, obterResultadosGlobais, 
+        reiniciarRonda, obterTodosOsJogadores
     };
-}
 
-// --- LÓGICA DO JOGO ---
+    function handlePlayerJoin(socketId, playerName) {
+        const allPlayers = gameData.getAllPlayers();
+        const nomeJaExiste = allPlayers.some(p => p.name.toLowerCase() === playerName.toLowerCase());
+        if (nomeJaExiste) return { error: erroUser(`O nome '${playerName}' já existe!`) };
 
-export function startGame() {
-    const players = db.getAllPlayers();
-    
-    // Regra: Precisamos de pelo menos 2 amigos para ter piada!
-    if (players.length < 2) {
-        return { error: "Precisam de ser pelo menos 2 jogadores para começar a festa!" };
+        const player = gameData.addPlayer(socketId, playerName);
+        return { success: true, player, allPlayers: gameData.getAllPlayers(), gameStatus: gameData.getGameState().status };
     }
 
-    const newState = db.updateGameState('playing');
-    return { success: true, gameState: newState };
-}
-
-export function handleGifSubmission(socketId, gifUrl) {
-    const gameState = db.getGameState();
-    const player = db.getPlayer(socketId);
-
-    // Regras de segurança básicas
-    if (!player) return { error: "Jogador não encontrado!" };
-    if (gameState.status !== 'playing') return { error: "Ainda não estamos na fase de caça aos GIFs!" };
-
-    // Verifica se este jogador já enviou um GIF nesta ronda (para não fazer spam)
-    const alreadySubmitted = gameState.gifsSubmitted.find(g => g.playerId === socketId);
-    if (alreadySubmitted) {
-        return { error: "Já enviaste o teu GIF, espertinho! Espera pelos outros." };
+    function handlePlayerLeave(socketId) {
+        const removedPlayer = gameData.removePlayer(socketId);
+        const allPlayers = gameData.getAllPlayers();
+        if (allPlayers.length === 0) {
+            gameData.updateGameState('waiting');
+            gameData.getGameState().gifs.clear(); 
+            gameData.getGameState().votes.clear(); 
+        }
+        return { removedPlayer, allPlayers };
     }
 
-    // Guarda o GIF com o dono e prepara os votos para a Ronda 3
-    gameState.gifsSubmitted.push({
-        playerId: socketId,
-        playerName: player.name,
-        gifUrl: gifUrl,
-        votes: 0
-    });
+    function obterTodosOsJogadores() { return gameData.getAllPlayers(); }
 
-    return { success: true, totalSubmitted: gameState.gifsSubmitted.length };
+    function startGame() {
+        if (gameData.getAllPlayers().length < 2) return { error: erroJogo("Mínimo 2 jogadores!") };
+        return { success: true, gameState: gameData.updateGameState('playing') };
+    }
+
+    function adicionarGif(playerId, gifUrl) {
+        if (gameData.getGameState().status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
+        if (gameData.getGifByPlayer(playerId)) return { error: erroUser(MSG.JA_ENVIOU) };
+        return { success: true, gif: gameData.addGif(playerId, gifUrl) };
+    }
+
+    function alterarGif(playerId, newGifUrl) {
+        if (gameData.getGameState().status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
+        const gifExistente = gameData.getGifByPlayer(playerId);
+        if (!gifExistente) return { error: erroUser(MSG.NAO_ENVIOU) };
+        return { success: true, gif: gameData.updateGif(gifExistente.id, newGifUrl) };
+    }
+
+    function votar(playerId, gifId) {
+        if (gameData.getGameState().status !== 'voting') return { error: erroJogo(MSG.FASE_ERRADA_VOTO) };
+        const gifEscolhido = gameData.getAllGifs().find(g => g.id === gifId);
+        if (!gifEscolhido) return { error: erroJogo(MSG.GIF_INEXISTENTE) };
+        if (gifEscolhido.playerId === playerId) return { error: erroUser(MSG.VOTO_PROPRIO) };
+        gameData.setVote(playerId, gifId);
+        return { success: true };
+    }
+
+    function obterGifs() { return gameData.getAllGifs(); }
+
+    function obterVotosPorGif(gifId) {
+        const todosOsVotos = gameData.getAllVotes();
+        const votosDesteGif = todosOsVotos.filter(([_, emQuem]) => emQuem === gifId);
+        return { 
+            gifId, 
+            totalVotos: votosDesteGif.length, 
+            voters: votosDesteGif.map(([idVotante]) => gameData.getPlayer(idVotante)?.name || "Anónimo") 
+        };
+    }
+
+    function obterResultadosGlobais() {
+        const gifs = gameData.getAllGifs();
+        const todosOsVotos = gameData.getAllVotes();
+        
+        return gifs.map(gif => {
+            // Filtra quem votou neste GIF específico
+            const votosNesteGif = todosOsVotos.filter(([idVotante, gifIdVotado]) => gifIdVotado === gif.id);
+            
+            return {
+                gifId: gif.id,
+                url: gif.url,
+                dono: gameData.getPlayer(gif.playerId)?.name || "Anónimo",
+                totalVotos: votosNesteGif.length,
+                quemVotou: votosNesteGif.map(([idVotante]) => {
+                    const player = gameData.getPlayer(idVotante);
+                    return player ? player.name : "Anónimo";
+                })
+            };
+        }).sort((a, b) => b.totalVotos - a.totalVotos);
+    }
+
+    function reiniciarRonda() { return { success: true, gameState: gameData.resetRound() }; }
 }
