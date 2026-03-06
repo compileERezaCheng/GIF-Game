@@ -1,116 +1,111 @@
-###======================================================
-
-###JOGO DOS GIFS - TESTE DE FLUXO COM TEMAS E PONTUAÇÃO
-
-
-###======================================================
-
+### ======================================================
+### JOGO DOS GIFS - TESTE DE FLUXO, PONTUAÇÃO E RESETS
+### ======================================================
 @baseUrl = http://localhost:3750/api
 
-###1. ESTADO INICIAL
-
-GET {{baseUrl}}/game
-
-###------------------------------------------------------
-
-###2. ENTRADA DE JOGADORES
-
-###@name criarJogador1
-
+### 1. ENTRADA DE JOGADORES
+# @name criarP1
 POST {{baseUrl}}/test/join/Dr4g0n
 
-###@name criarJogador2
-
+###
+# @name criarP2
 POST {{baseUrl}}/test/join/Maria
 
-###Ver jogadores atuais
-
+### Verificar IDs (Copia os IDs "rest_..." para os passos abaixo)
 GET {{baseUrl}}/players
 
-###------------------------------------------------------
 
-###3. SISTEMA DE TEMAS (Sugerir e Escolher)
-
-###Sugerir um tema para a aba de sugestões
-
+### ------------------------------------------------------
+### 2. POOL DE TEMAS (SUGESTÕES)
 POST {{baseUrl}}/themes/suggest
 Content-Type: application/json
 
-{ "tema": "Francisco a dar rage no Fortnite" }
+{ "tema": "Francisco a dar rage no Vava" }
 
-###Ver sugestões disponíveis
-
-GET {{baseUrl}}/themes/suggestions
-
-###Escolher o tema oficial (Isso muda o estado para 'playing')
-
-POST {{baseUrl}}/themes/pick
+###
+POST {{baseUrl}}/themes/suggest
 Content-Type: application/json
 
-{ "tema": "Francisco a dar rage no Valorant" }
+{ "tema": "Martim no date com o Tomas" }
 
-###------------------------------------------------------
+###
+POST {{baseUrl}}/themes/suggest
+Content-Type: application/json
 
-###4. SUBMETER GIFS
+{ "tema": "O Duarte a tentar ser engraçado" }
 
-###(Copia os IDs do passo /api/players)
 
-###Dr4g0n envia
+### ------------------------------------------------------
+### 3. FASE DE SORTEIO (Inicia com 2 temas random do Pool)
+POST {{baseUrl}}/game/start
 
+### Ver quais foram os 2 temas sorteados
+GET {{baseUrl}}/game
+
+### Votar num dos temas (Substitui os IDs e o Nome do Tema)
+POST {{baseUrl}}/themes/vote
+Content-Type: application/json
+
+{
+    "playerId": "rest_qbovs",
+    "tema": "Francisco a dar rage no Vava"
+}
+
+### Finalizar Votação (Contagem automática e abre fase de GIFs)
+POST {{baseUrl}}/themes/finish
+
+
+### ------------------------------------------------------
+### 4. FASE DE JOGO (SUBMETER GIFS)
 POST {{baseUrl}}/gifs
 Content-Type: application/json
 
 {
-"playerId": "rest_1dlfb8",
-"url": "https://www.google.com/search?q=https://media.giphy.com/media/3o7TKSjP6S7SaVXYJo/giphy.gif"
+    "playerId": "rest_qbovs",
+    "url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJueW90Z3R6Z3R6Z3R6Z3R6/3o7TKSjP6S7SaVXYJo/giphy.gif"
 }
 
-###Maria envia
 
-POST {{baseUrl}}/gifs
-Content-Type: application/json
-
-{
-"playerId": "rest_r27kmi",
-"url": "https://www.google.com/search?q=https://media.giphy.com/media/26vUAApS6tK/giphy.gif"
-}
-
-###------------------------------------------------------
-
-###5. VOTAÇÃO E PONTOS
-
-###Mudar para fase de votação
-
+### ------------------------------------------------------
+### 5. VOTAÇÃO DE GIFS E PONTOS
 POST {{baseUrl}}/test/status/voting
 
-###Maria vota no GIF do Dr4g0n (Dá 10 pontos ao Dr4g0n)
+### Ver IDs dos GIFs para votar
+GET {{baseUrl}}/gifs
 
+### Maria vota no Dr4g0n (Dá +10 pontos)
 POST {{baseUrl}}/votes
 Content-Type: application/json
 
 {
-"playerId": "rest_r27kmi",
-"gifId": "c0e72ffa-0d15-468b-a514-ef3160b9dc31"
+    "playerId": "rest_b2eynv",
+    "gifId": "549caca4-2c26-48ba-a1e4-1dd18addb668"
 }
 
-###------------------------------------------------------
 
-###6. RESULTADOS E LEADERBOARD
-
-###Ver quem votou em quem nesta ronda
-
+### ------------------------------------------------------
+### 6. RESULTADOS E LEADERBOARD
 GET {{baseUrl}}/results
 
-###Ver ranking global de pontos
-
+###
 GET {{baseUrl}}/leaderboard
 
-###------------------------------------------------------
 
-###7. RESET RONDA
+### ------------------------------------------------------
+### 7. RESETS E PROGRESSÃO
 
+### RESET DE RONDA (Avança Ronda, Limpa GIFs, MANTÉM PONTOS)
 POST {{baseUrl}}/test/reset-round
 
-###------------------------------------------------------
+### Verificar se Ronda é a 2 e Pontos continuam lá
+GET {{baseUrl}}/game
 
+###
 GET {{baseUrl}}/leaderboard
+
+### RESET TOTAL (Fim de Jogo/Novo Campeonato)
+### Scores voltam a 0, Ronda volta a 1, mas TEMAS MANTÊM-SE
+POST {{baseUrl}}/test/full-reset
+
+### Verificação Final (Tudo limpo menos os Temas)
+GET {{baseUrl}}/game

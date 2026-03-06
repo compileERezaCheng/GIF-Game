@@ -1,167 +1,110 @@
 import { erroUser, erroJogo, MSG } from '../commons/errors.mjs';
 
 export default function init(gameData) {
-    if (!gameData) throw new Error("gameData is required");
+    if (!gameData) throw new Error("gameData is required.");
 
     return {
-        handlePlayerJoin,
-        handlePlayerLeave,
-        startGame,
-        escolherTema,
-        sugerirTema,
-        obterSugestoes,
-        adicionarGif,
-        alterarGif,
-        votar,
-        obterGifs,
-        obterTodosOsJogadores,
-        obterVotosPorGif,
-        obterResultadosGlobais,
-        reiniciarRonda
+        handlePlayerJoin, handlePlayerLeave, startGame,
+        votarNoTema, finalizarVotacaoTema,
+        sugerirTema, adicionarGif, votar, 
+        obterResultadosGlobais, reiniciarRonda, reiniciarJogoCompleto,
+        obterTodosOsJogadores, obterSugestoes, obterGifs
     };
 
-    // ======================================================
-    // JOGADORES
-    // ======================================================
     function handlePlayerJoin(socketId, playerName) {
-        const allPlayers = gameData.getAllPlayers();
-        const nomeJaExiste = allPlayers.some(p => p.name.toLowerCase() === playerName.toLowerCase());
-        
-        if (nomeJaExiste) return { error: erroUser(`O nome '${playerName}' já existe!`) };
+        if (!playerName || playerName.trim().length < 2) return { error: erroUser("Nome inválido.") };
+        const all = gameData.getAllPlayers();
+        if (all.some(p => p.name.toLowerCase() === playerName.toLowerCase()))
+            return { error: erroUser(`O nome '${playerName}' já existe.`) };
 
-        const player = gameData.addPlayer(socketId, playerName);
-        return { 
-            success: true, 
-            player, 
-            allPlayers: gameData.getAllPlayers(), 
-            gameStatus: gameData.getGameState().status 
-        };
+        const player = gameData.addPlayer(socketId, playerName.trim());
+        return { success: true, player, allPlayers: gameData.getAllPlayers() };
     }
 
     function handlePlayerLeave(socketId) {
-        const removedPlayer = gameData.removePlayer(socketId);
-        const allPlayers = gameData.getAllPlayers();
-        
-        if (allPlayers.length === 0) {
-            gameData.updateGameState('waiting');
-            gameData.getGameState().gifs.clear(); 
-            gameData.getGameState().votes.clear(); 
-        }
-        return { removedPlayer, allPlayers };
+        const removed = gameData.removePlayer(socketId);
+        if (gameData.getAllPlayers().length === 0) gameData.resetRound();
+        return { removed, allPlayers: gameData.getAllPlayers() };
     }
 
-    function obterTodosOsJogadores() {
-        return gameData.getAllPlayers();
-    }
-
-    // ======================================================
-    // SISTEMA DE TEMAS
-    // ======================================================
-    function sugerirTema(tema) {
-        if (!tema || tema.trim().length < 3) {
-            return { error: erroUser("O tema sugerido é demasiado curto!") };
-        }
-        const sugestoes = gameData.addThemeSuggestion(tema.trim());
-        return { success: true, sugestoes };
-    }
-
-    function obterSugestoes() {
-        return gameData.getThemeSuggestions();
-    }
-
-    function escolherTema(tema) {
-        if (!tema) return { error: erroJogo("Tens de fornecer um tema para a ronda!") };
-        
-        gameData.setTheme(tema);
-        gameData.updateGameState('playing'); // Ao escolher tema, abre a submissão de GIFs
-        return { success: true, tema };
-    }
-
-    // ======================================================
-    // ESTADO E FLUXO DO JOGO
-    // ======================================================
     function startGame() {
-        if (gameData.getAllPlayers().length < 2) {
-            return { error: erroJogo("Precisam de ser pelo menos 2 jogadores para começar!") };
-        }
-        // O jogo começa na fase de seleção de tema
-        return { success: true, gameState: gameData.updateGameState('selecting_theme') };
+        const pool = gameData.getThemeSuggestions();
+        if (gameData.getAllPlayers().length < 2) return { error: erroJogo("Mínimo 2 jogadores.") };
+        if (pool.length < 2) return { error: erroJogo(MSG.POUCOS_TEMAS) };
+
+        const sorteados = pool.sort(() => 0.5 - Math.random()).slice(0, 2);
+        gameData.setThemeBallot(sorteados);
+        return { success: true, ballot: sorteados, gameState: gameData.updateGameState('selecting_theme') };
     }
 
-    function reiniciarRonda() {
-        const novoEstado = gameData.resetRound();
-        return { success: true, gameState: novoEstado };
-    }
+    function votarNoTema(playerId, temaEscolhido) {
+        const state = gameData.getGameState();
+        if (state.status !== 'selecting_theme') return { error: erroJogo(MSG.FASE_ERRADA_VOTO_TEMA) };
+        if (!state.themeBallot.includes(temaEscolhido)) return { error: erroUser(MSG.TEMA_NAO_DISPONIVEL) };
 
-    // ======================================================
-    // GIFS E VOTOS (COM PONTUAÇÃO)
-    // ======================================================
-    function adicionarGif(playerId, gifUrl) {
-        if (gameData.getGameState().status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
-        if (gameData.getGifByPlayer(playerId)) return { error: erroUser(MSG.JA_ENVIOU) };
-        
-        return { success: true, gif: gameData.addGif(playerId, gifUrl) };
-    }
+        const votos = gameData.getThemeVotes();
+        if (votos.some(([pid]) => pid === playerId)) return { error: erroUser(MSG.JA_VOTOU_TEMA) };
 
-    function alterarGif(playerId, newGifUrl) {
-        if (gameData.getGameState().status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
-        const gifExistente = gameData.getGifByPlayer(playerId);
-        if (!gifExistente) return { error: erroUser(MSG.NAO_ENVIOU) };
-        
-        return { success: true, gif: gameData.updateGif(gifExistente.id, newGifUrl) };
-    }
-
-    function votar(playerId, gifId) {
-        if (gameData.getGameState().status !== 'voting') return { error: erroJogo(MSG.FASE_ERRADA_VOTO) };
-        
-        const gif = gameData.getAllGifs().find(g => g.id === gifId);
-        if (!gif) return { error: erroJogo(MSG.GIF_INEXISTENTE) };
-        if (gif.playerId === playerId) return { error: erroUser(MSG.VOTO_PROPRIO) };
-        
-        // Registar o voto
-        gameData.setVote(playerId, gifId);
-        
-        // SISTEMA DE PONTOS: +10 pontos para quem enviou o GIF votado
-        gameData.updatePlayerScore(gif.playerId, 10);
-        
+        gameData.castThemeVote(playerId, temaEscolhido);
         return { success: true };
     }
 
-    function obterGifs() { 
-        return gameData.getAllGifs(); 
+    function finalizarVotacaoTema() {
+        const state = gameData.getGameState();
+        const votos = gameData.getThemeVotes();
+        const contagem = {};
+        state.themeBallot.forEach(t => contagem[t] = 0);
+        votos.forEach(([_, tema]) => contagem[tema]++);
+
+        const [temaA, temaB] = state.themeBallot;
+        const vencedor = contagem[temaA] >= contagem[temaB] ? temaA : temaB;
+
+        gameData.setTheme(vencedor);
+        return { success: true, temaVencedor: vencedor, contagem, gameState: gameData.updateGameState('playing') };
     }
 
-    function obterVotosPorGif(gifId) {
-        const todosOsVotos = gameData.getAllVotes();
-        const votosDesteGif = todosOsVotos.filter(([_, emQuem]) => emQuem === gifId);
-        return { 
-            gifId, 
-            totalVotos: votosDesteGif.length, 
-            voters: votosDesteGif.map(([idVotante]) => gameData.getPlayer(idVotante)?.name || "Anónimo") 
+    function adicionarGif(playerId, url) {
+        const state = gameData.getGameState();
+        if (state.status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
+        if (gameData.getGifByPlayer(playerId)) return { error: erroUser(MSG.JA_ENVIOU) };
+        return { success: true, gif: gameData.addGif(playerId, url) };
+    }
+
+    function votar(playerId, gifId) {
+        const state = gameData.getGameState();
+        if (state.status !== 'voting') return { error: erroJogo(MSG.FASE_ERRADA_VOTO) };
+        const gif = gameData.getAllGifs().find(g => g.id === gifId);
+        if (!gif || gif.playerId === playerId) return { error: erroUser(MSG.VOTO_PROPRIO) };
+        
+        gameData.setVote(playerId, gifId);
+        gameData.updatePlayerScore(gif.playerId, 10);
+        return { success: true };
+    }
+
+    function sugerirTema(tema) {
+        if (!tema || tema.trim().length < 3) return { error: erroUser(MSG.TEMA_CURTO) };
+        gameData.addThemeSuggestion(tema.trim());
+        return { success: true };
+    }
+
+    function obterResultadosGlobais() {
+        const state = gameData.getGameState();
+        const gifs = gameData.getAllGifs();
+        const votes = gameData.getAllVotes();
+        return {
+            tema: state.currentTheme,
+            resultados: gifs.map(g => ({
+                dono: gameData.getPlayer(g.playerId)?.name || "Anónimo",
+                url: g.url,
+                totalVotos: votes.filter(([_, t]) => t === g.id).length,
+                quemVotou: votes.filter(([_, t]) => t === g.id).map(([vid]) => gameData.getPlayer(vid)?.name || "Anónimo")
+            })).sort((a,b) => b.totalVotos - a.totalVotos)
         };
     }
 
-    // ======================================================
-    // RESULTADOS E RANKING
-    // ======================================================
-    function obterResultadosGlobais() {
-        const gifs = gameData.getAllGifs();
-        const todosOsVotos = gameData.getAllVotes();
-        
-        return gifs.map(gif => {
-            const votosNesteGif = todosOsVotos.filter(([_, gifIdVotado]) => gifIdVotado === gif.id);
-            const dono = gameData.getPlayer(gif.playerId);
-
-            return {
-                gifId: gif.id,
-                url: gif.url,
-                dono: dono ? dono.name : "Anónimo",
-                totalVotos: votosNesteGif.length,
-                quemVotou: votosNesteGif.map(([idVotante]) => {
-                    const player = gameData.getPlayer(idVotante);
-                    return player ? player.name : "Anónimo";
-                })
-            };
-        }).sort((a, b) => b.totalVotos - a.totalVotos);
-    }
+    function reiniciarRonda() { return gameData.resetRound(); }
+    function reiniciarJogoCompleto() { return { success: true, gameState: gameData.fullReset() }; }
+    function obterTodosOsJogadores() { return gameData.getAllPlayers(); }
+    function obterSugestoes() { return gameData.getThemeSuggestions(); }
+    function obterGifs() { return gameData.getAllGifs(); }
 }
