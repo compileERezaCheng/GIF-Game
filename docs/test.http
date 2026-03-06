@@ -1,90 +1,116 @@
-### ======================================================
-### JOGO DOS GIFS - TESTE DE FLUXO COMPLETO
-### ======================================================
+###======================================================
+
+###JOGO DOS GIFS - TESTE DE FLUXO COM TEMAS E PONTUAÇÃO
+
+
+###======================================================
 
 @baseUrl = http://localhost:3750/api
 
-### 1. VERIFICAR ESTADO INICIAL (Deve estar em 'waiting')
+###1. ESTADO INICIAL
+
 GET {{baseUrl}}/game
 
-### ------------------------------------------------------
+###------------------------------------------------------
 
-### 2. ADICIONAR JOGADORES (Simula Sockets via REST)
-# @name criarJogador1
+###2. ENTRADA DE JOGADORES
+
+###@name criarJogador1
+
 POST {{baseUrl}}/test/join/Dr4g0n
 
-###
-# @name criarJogador2
-POST {{baseUrl}}/test/join/MariaGamer
+###@name criarJogador2
 
-###
-# @name criarJogadorDuplicado
-# Este deve dar erro: "Erro no user: O nome 'dr4g0n' já existe!"
-POST {{baseUrl}}/test/join/dr4g0n
+POST {{baseUrl}}/test/join/Maria
 
-### ------------------------------------------------------
+###Ver jogadores atuais
 
-### 3. VERIFICAR LISTA DE JOGADORES
-# Copia o "id" dos jogadores que aparecem aqui para os próximos passos
 GET {{baseUrl}}/players
 
-### ------------------------------------------------------
+###------------------------------------------------------
 
-### 4. MUDAR FASE PARA 'PLAYING' (Caça ao GIF)
-POST {{baseUrl}}/test/status/playing
+###3. SISTEMA DE TEMAS (Sugerir e Escolher)
 
-### ------------------------------------------------------
+###Sugerir um tema para a aba de sugestões
 
-### 5. SUBMETER GIFS
-# Substitui o playerId pelo ID da resposta do passo 2 ou 3
+POST {{baseUrl}}/themes/suggest
+Content-Type: application/json
+
+{ "tema": "Francisco a dar rage no Fortnite" }
+
+###Ver sugestões disponíveis
+
+GET {{baseUrl}}/themes/suggestions
+
+###Escolher o tema oficial (Isso muda o estado para 'playing')
+
+POST {{baseUrl}}/themes/pick
+Content-Type: application/json
+
+{ "tema": "Francisco a dar rage no Valorant" }
+
+###------------------------------------------------------
+
+###4. SUBMETER GIFS
+
+###(Copia os IDs do passo /api/players)
+
+###Dr4g0n envia
+
 POST {{baseUrl}}/gifs
 Content-Type: application/json
 
 {
-    "playerId": "rest_swb8gv",
-    "url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJueW90Z3R6Z3R6Z3R6Z3R6/3o7TKSjP6S7SaVXYJo/giphy.gif"
+"playerId": "rest_1dlfb8",
+"url": "https://www.google.com/search?q=https://media.giphy.com/media/3o7TKSjP6S7SaVXYJo/giphy.gif"
 }
 
-###
+###Maria envia
+
 POST {{baseUrl}}/gifs
 Content-Type: application/json
 
 {
-    "playerId": "rest_rr1ate",
-    "url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJueW90Z3R6Z3R6Z3R6Z3R6/26vUAApS6tK/giphy.gif"
+"playerId": "rest_r27kmi",
+"url": "https://www.google.com/search?q=https://media.giphy.com/media/26vUAApS6tK/giphy.gif"
 }
 
-### ------------------------------------------------------
+###------------------------------------------------------
 
-### 6. FASE DE VOTAÇÃO
-# Primeiro mudamos o estado
+###5. VOTAÇÃO E PONTOS
+
+###Mudar para fase de votação
+
 POST {{baseUrl}}/test/status/voting
 
-###
-# Ver os IDs dos GIFs disponíveis para votar
-GET {{baseUrl}}/gifs
+###Maria vota no GIF do Dr4g0n (Dá 10 pontos ao Dr4g0n)
 
-###
-# Dr4g0n vota no GIF da Maria (Substitui os IDs)
 POST {{baseUrl}}/votes
 Content-Type: application/json
 
 {
-    "playerId": "rest_swb8gv",
-    "gifId": "e156d504-bfba-4a0e-86d4-1a399e701d45"
+"playerId": "rest_r27kmi",
+"gifId": "c0e72ffa-0d15-468b-a514-ef3160b9dc31"
 }
 
-### ------------------------------------------------------
+###------------------------------------------------------
 
-### 7. VER RESULTADOS E LIMPAR
-# Ver quem ganhou a ronda
+###6. RESULTADOS E LEADERBOARD
+
+###Ver quem votou em quem nesta ronda
+
 GET {{baseUrl}}/results
 
-###
-# Avançar para a próxima ronda (Limpa GIFs e Votos)
+###Ver ranking global de pontos
+
+GET {{baseUrl}}/leaderboard
+
+###------------------------------------------------------
+
+###7. RESET RONDA
+
 POST {{baseUrl}}/test/reset-round
 
-###
-# Confirmar que a ronda agora é a 2 e está 'playing'
-GET {{baseUrl}}/game
+###------------------------------------------------------
 
+GET {{baseUrl}}/leaderboard

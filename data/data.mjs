@@ -2,16 +2,18 @@ import crypto from 'crypto';
 
 export default function init() {
     const players = new Map(); 
+    const themeSuggestions = new Set(); // Guardamos sugestões únicas
     const game = {
         status: 'waiting',
         round: 1,
+        currentTheme: null,
         gifs: new Map(),  
         votes: new Map()  
     };
 
     return {
-        addPlayer, removePlayer, getPlayer, getAllPlayers,
-        updateGameState, getGameState,
+        addPlayer, removePlayer, getPlayer, getAllPlayers, updatePlayerScore,
+        updateGameState, getGameState, setTheme, addThemeSuggestion, getThemeSuggestions,
         addGif, updateGif, getGifByPlayer, getAllGifs,
         setVote, getAllVotes, resetRound
     };
@@ -20,6 +22,12 @@ export default function init() {
         const newPlayer = { id: socketId, name: name, score: 0 };
         players.set(socketId, newPlayer);
         return newPlayer;
+    }
+
+    function updatePlayerScore(playerId, points) {
+        const player = players.get(playerId);
+        if (player) player.score += points;
+        return player;
     }
 
     function removePlayer(socketId) {
@@ -35,6 +43,19 @@ export default function init() {
         game.status = newStatus;
         return game;
     }
+
+    function setTheme(theme) {
+        game.currentTheme = theme;
+        return game;
+    }
+
+    function addThemeSuggestion(theme) {
+        themeSuggestions.add(theme);
+        return Array.from(themeSuggestions);
+    }
+
+    function getThemeSuggestions() { return Array.from(themeSuggestions); }
+
     function getGameState() { return game; }
 
     function addGif(playerId, url) {
@@ -61,8 +82,9 @@ export default function init() {
     function resetRound() {
         game.gifs.clear();
         game.votes.clear();
+        game.currentTheme = null;
         game.round += 1;
-        game.status = 'playing';
+        game.status = 'waiting'; // Volta para esperar por novo tema
         return game;
     }
 }
