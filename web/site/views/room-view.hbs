@@ -16,8 +16,18 @@
         
         <div class="glass p-10 rounded-3xl text-center border-t border-white/10 relative overflow-hidden">
             <div class="relative z-10">
-                <div class="inline-flex p-4 bg-purple-500/10 rounded-2xl mb-6">
-                    <i data-lucide="gamepad-2" class="text-purple-500 w-10 h-10"></i>
+                
+                <div class="flex justify-between items-start mb-6">
+                    <div class="w-10"></div> <!-- Spacer -->
+                    <div class="inline-flex p-4 bg-purple-500/10 rounded-2xl">
+                        <i data-lucide="gamepad-2" class="text-purple-500 w-10 h-10"></i>
+                    </div>
+                    <!-- BOTÃO PARA SAIR DA SALA -->
+                    <form action="/room/leave" method="POST">
+                        <button type="submit" class="p-3 hover:bg-red-500/20 rounded-2xl transition-all text-red-500 group" title="Sair da Sala">
+                            <i data-lucide="log-out" class="w-6 h-6 group-hover:scale-110"></i>
+                        </button>
+                    </form>
                 </div>
                 
                 <h2 class="text-3xl font-black mb-2 italic uppercase">Sala de Espera</h2>

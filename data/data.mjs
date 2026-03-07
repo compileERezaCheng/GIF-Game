@@ -2,11 +2,11 @@ import crypto from 'crypto';
 
 export default function init() {
     const players = new Map();    // userId -> { id, name, score, roomId, pfp }
-    const rooms = new Map();      // roomCode -> { status, configs, ... }
+    const rooms = new Map();      // roomCode -> { hostId, playersIds, status, ... }
 
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
-        createRoom, getRoom, joinRoom, updateRoomStatus, updateRoomConfigs,
+        createRoom, getRoom, joinRoom, leaveRoom, updateRoomStatus, updateRoomConfigs,
         addThemeSuggestion, getThemeSuggestions, resetRoomRound, fullReset, softResetRoom
     };
 
@@ -38,25 +38,19 @@ export default function init() {
         } while (rooms.has(code));
 
         const room = {
-            code,
-            hostId,
-            status: 'LOBBY',
-            round: 1,
-            currentTheme: null,
-            themeBallot: [],
-            themeVotes: new Map(),
-            gifs: new Map(),
-            votes: new Map(),
-            playersIds: new Set([hostId]),
-            themePool: new Set(),
-            submittedPlayers: new Set(),
-            timerExpiresAt: null,
-            configs: { rounds: 3, suggestionTime: 1, submissionTime: 2 }
+            code, hostId, status: 'LOBBY', round: 1, currentTheme: null,
+            themeBallot: [], themeVotes: new Map(), gifs: new Map(), votes: new Map(),
+            playersIds: new Set([hostId]), themePool: new Set(), submittedPlayers: new Set(),
+            timerExpiresAt: null, configs: { rounds: 3, suggestionTime: 1, submissionTime: 2 }
         };
-
         rooms.set(code, room);
         if (players.has(hostId)) players.get(hostId).roomId = code;
         return room;
+    }
+
+    // FUNÇÃO QUE ESTAVA EM FALTA
+    function getRoom(code) {
+        return rooms.get(code);
     }
 
     function joinRoom(userId, code) {
@@ -67,7 +61,27 @@ export default function init() {
         return room;
     }
 
-    function getRoom(code) { return rooms.get(code); }
+    function leaveRoom(userId) {
+        const player = players.get(userId);
+        if (!player || !player.roomId) return null;
+
+        const code = player.roomId;
+        const room = rooms.get(code);
+        if (!room) return null;
+
+        room.playersIds.delete(userId);
+        player.roomId = null;
+
+        if (String(room.hostId) === String(userId)) {
+            const remainingPlayers = Array.from(room.playersIds);
+            if (remainingPlayers.length > 0) {
+                room.hostId = remainingPlayers[0];
+            } else {
+                rooms.delete(code);
+            }
+        }
+        return code;
+    }
 
     function updateRoomConfigs(code, configs) {
         const room = rooms.get(code);
@@ -83,26 +97,16 @@ export default function init() {
         if (!room) return;
         room.status = status;
         const now = Date.now();
-        // Lógica de Timestamps Absolutos para Sincronização
-        if (status === 'THEME_SUBMISSION') {
-            room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
-        } else if (status === 'GIF_SUBMISSION') {
-            room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
-        } else if (status === 'THEME_WINNER') {
-            room.timerExpiresAt = now + 5000;
-        } else if (status === 'RESULTS') {
-            room.timerExpiresAt = now + 15000;
-        } else {
-            room.timerExpiresAt = null;
-        }
+        if (status === 'THEME_SUBMISSION') room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
+        else if (status === 'GIF_SUBMISSION') room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
+        else if (status === 'THEME_WINNER') room.timerExpiresAt = now + 5000;
+        else if (status === 'RESULTS') room.timerExpiresAt = now + 15000;
+        else room.timerExpiresAt = null;
     }
 
     function addThemeSuggestion(code, userId, theme) {
         const room = rooms.get(code);
-        if (room && theme) {
-            room.themePool.add(theme.trim());
-            room.submittedPlayers.add(userId);
-        }
+        if (room && theme) { room.themePool.add(theme.trim()); room.submittedPlayers.add(userId); }
     }
 
     function getThemeSuggestions(code) {
@@ -118,13 +122,9 @@ export default function init() {
     function resetRoomRound(code) {
         const room = rooms.get(code);
         if (room) {
-            room.gifs.clear();
-            room.votes.clear();
-            room.themeVotes.clear();
-            room.submittedPlayers.clear();
-            room.themeBallot = [];
-            room.currentTheme = null;
-            room.timerExpiresAt = null;
+            room.gifs.clear(); room.votes.clear(); room.themeVotes.clear();
+            room.submittedPlayers.clear(); room.themeBallot = [];
+            room.currentTheme = null; room.timerExpiresAt = null;
         }
     }
 
@@ -132,12 +132,8 @@ export default function init() {
         const room = rooms.get(code);
         if (room) {
             resetRoomRound(code);
-            room.round = 1;
-            room.status = 'LOBBY';
-            room.themePool.clear();
-            room.playersIds.forEach(id => {
-                if (players.has(id)) players.get(id).score = 0;
-            });
+            room.round = 1; room.status = 'LOBBY';
+            room.playersIds.forEach(id => { if (players.has(id)) players.get(id).score = 0; });
         }
     }
 

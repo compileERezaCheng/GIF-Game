@@ -21,7 +21,7 @@ export default function init(gameServices, gameData, io) {
 
     function setupRoutes(app) {
         
-        // --- NAVEGAÇÃO PRINCIPAL (AUTOMÁTICA) ---
+        // --- NAVEGAÇÃO PRINCIPAL ---
         app.get('/', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -34,7 +34,7 @@ export default function init(gameServices, gameData, io) {
             if (!room) { player.roomId = null; return res.redirect('/'); }
 
             const isHost = String(room.hostId) === String(userId);
-            const timeLeft = room.timerExpiresAt ? Math.max(0, Math.floor((room.timerExpiresAt - Date.now()) / 1000)) : 0;
+            const timeLeft = room.timerExpiresAt ? Math.max(0, Math.ceil((room.timerExpiresAt - Date.now()) / 1000)) : 0;
 
             const viewData = { 
                 player, room, isHost, 
@@ -66,7 +66,17 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        // --- GESTÃO DE PERFIL E AVATARES ---
+        // --- GESTÃO DE ENTRADA (O QUE ESTAVA A FALTAR) ---
+        app.post('/login', (req, res) => {
+            const name = req.body.name;
+            if (name) {
+                gameData.addPlayer(req.cookies.userId, name);
+                return res.redirect('/choose-icon');
+            }
+            res.redirect('/');
+        });
+
+        // --- PERFIL E ICONES ---
         app.get('/profile', (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
             if (!player) return res.redirect('/');
@@ -89,12 +99,7 @@ export default function init(gameServices, gameData, io) {
             res.redirect(req.body.redirect || '/');
         });
 
-        // --- SALAS ---
-        app.post('/login', (req, res) => {
-            gameData.addPlayer(req.cookies.userId, req.body.name);
-            res.redirect('/choose-icon');
-        });
-
+        // --- GESTÃO DE SALAS ---
         app.get('/room/create', (req, res) => res.render('room-create-view'));
         app.get('/room/join', (req, res) => res.render('room-join-view', { error: req.query.error }));
 
@@ -108,12 +113,29 @@ export default function init(gameServices, gameData, io) {
             const code = req.body.code.toUpperCase();
             const room = gameData.getRoom(code);
             if (!room) return res.redirect('/room/join?error=Código inválido');
+            
+            // Validação de nome duplicado na sala
+            const currentPlayer = gameData.getPlayer(req.cookies.userId);
+            const playersInRoom = gameData.getAllPlayersInRoom(code);
+            if (playersInRoom.some(p => p.name.toLowerCase() === currentPlayer.name.toLowerCase() && p.id !== currentPlayer.id)) {
+                return res.redirect('/room/join?error=Nome já em uso nesta sala');
+            }
+
             gameData.joinRoom(req.cookies.userId, code);
             broadcastSync(code, 'player_update');
             res.redirect('/');
         });
 
-        // --- FASES DE JOGO (TEMAS) ---
+        app.post('/room/leave', (req, res) => {
+            const userId = req.cookies.userId;
+            const code = gameData.leaveRoom(userId);
+            if (code) {
+                broadcastSync(code, 'state_update'); 
+            }
+            res.redirect('/');
+        });
+
+        // --- AÇÕES DE JOGO ---
         app.post('/game/start', async (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
             if (player?.roomId) {
@@ -142,8 +164,8 @@ export default function init(gameServices, gameData, io) {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
                 await gameServices.castThemeVote(userId, player.roomId, req.body.tema);
+                const room = gameData.getRoom(player.roomId);
                 if (room.themeVotes.size >= room.playersIds.size) {
                     await gameServices.finishThemeVote(room.code);
                     broadcastSync(room.code, 'state_update');
@@ -152,32 +174,19 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        app.post('/theme/auto-finish', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
-                    await gameServices.startThemeVote(room.code);
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
-        });
-
-        // --- FASES DE JOGO (GIFS) ---
         app.post('/gif/start-phase', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
-                if (room && String(room.hostId) === String(userId)) {
+                if (room.timerExpiresAt && (Date.now() + 1000) < room.timerExpiresAt) return res.status(403).json({success: false});
+                if (String(room.hostId) === String(userId)) {
                     gameData.updateRoomStatus(room.code, 'GIF_SUBMISSION');
                     broadcastSync(room.code, 'state_update');
                     return res.json({ success: true });
                 }
             }
-            res.status(403).json({ success: false });
+            res.json({ success: false });
         });
 
         app.post('/gif/submit', async (req, res) => {
@@ -208,25 +217,12 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        app.post('/gif/auto-finish', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
-                    gameData.updateRoomStatus(room.code, 'GIF_VOTING');
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
-        });
-
-        // --- RONDA E RESTART ---
         app.post('/game/next-round', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
+                if (room.timerExpiresAt && (Date.now() + 1000) < room.timerExpiresAt) return res.status(403).json({success: false});
                 if (String(room.hostId) === String(userId)) {
                     await gameServices.advanceRound(room.code);
                     broadcastSync(room.code, 'state_update');

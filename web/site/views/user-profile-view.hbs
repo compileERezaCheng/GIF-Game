@@ -16,7 +16,6 @@
             
             <div class="relative z-10 text-center">
                 <div class="mb-10 flex flex-col items-center">
-                    <!-- FOTO CLICÁVEL: Passa o parâmetro from=profile -->
                     <a href="/choose-icon?from=profile" class="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-purple-600 to-pink-500 p-1 shadow-2xl mb-6 relative group border border-white/10 block transition-transform hover:scale-105 active:scale-95">
                         <div class="w-full h-full bg-gray-900 rounded-[38px] flex items-center justify-center overflow-hidden">
                             <img src="/images/pfp-{{player.pfp}}.png" class="w-full h-full object-contain" onerror="this.src='https://placehold.co/100?text=Avatar'">
@@ -32,7 +31,6 @@
                 </div>
 
                 <form action="/profile/update" method="POST" class="space-y-10">
-                    <!-- REDIRECIONAMENTO SEMPRE PARA "/" PARA VOLTAR ONDE ESTAVA -->
                     <input type="hidden" name="redirect" value="/">
                     
                     <div class="space-y-2 text-left">
@@ -43,17 +41,25 @@
                             value="{{player.name}}" 
                             maxlength="15" 
                             required 
-                            class="w-full p-6 bg-gray-900 border-2 border-gray-800 rounded-3xl text-white text-center text-2xl font-black focus:border-purple-600 focus:bg-black outline-none transition-all"
+                            class="w-full p-6 bg-gray-900 border-2 border-gray-800 rounded-3xl text-white text-center text-2xl font-black focus:border-purple-600 outline-none transition-all"
                         >
                     </div>
 
-                    <div class="flex flex-col gap-6">
+                    <div class="flex flex-col gap-4">
                         <button type="submit" class="w-full bg-white text-black p-6 rounded-3xl font-black text-xl hover:bg-purple-600 hover:text-white transition-all shadow-xl active:scale-95 uppercase italic">
                             GUARDAR ALTERAÇÕES
                         </button>
                         
-                        <a href="/" class="text-gray-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors italic">
-                            CANCELAR
+                        {{#if player.roomId}}
+                            <form action="/room/leave" method="POST" class="w-full">
+                                <button type="submit" formmethod="POST" formaction="/room/leave" class="w-full bg-red-500/10 border border-red-500/20 text-red-500 p-5 rounded-3xl font-black text-xs hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.2em] italic">
+                                    ABANDONAR SALA ATUAL
+                                </button>
+                            </form>
+                        {{/if}}
+
+                        <a href="/" class="text-gray-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors italic mt-4">
+                            VOLTAR À ARENA
                         </a>
                     </div>
                 </form>

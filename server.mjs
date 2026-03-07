@@ -44,7 +44,22 @@ app.use(webSite.sessionMiddleware);
 webSite.setupRoutes(app);
 
 io.on('connection', (socket) => {
-    socket.on('join_room_socket', (code) => { if (code) socket.join(code); });
+    let currentRoom = null;
+    let userId = null;
+
+    socket.on('join_room_socket', (code) => { 
+        if (code) {
+            socket.join(code); 
+            currentRoom = code;
+        }
+    });
+
+    // TRATAR DISCONNECT (O Host sai sem carregar no botão)
+    socket.on('disconnect', () => {
+        // Nota: Como usamos Cookies para o ID, aqui precisaríamos de mapear Socket -> User
+        // Mas o botão de Sair no perfil já cobre o fluxo principal.
+        // Se quiseres isto automático em refresh, precisamos de guardar o socketId no Player.
+    });
 });
 
-server.listen(3750, () => console.log('🚀 GIFWARS Arena ON: http://localhost:3750'));
+server.listen(3750, () => console.log('🚀 Arena Online: http://localhost:3750'));
