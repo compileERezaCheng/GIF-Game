@@ -1,9 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
 
-/**
- * Roteador Principal do Website
- * Gerencia o fluxo entre as rondas e a persistência de dados no ecrã.
- */
 export default function init(gameServices, gameData, io) {
     
     return { setupRoutes, sessionMiddleware };
@@ -15,9 +11,6 @@ export default function init(gameServices, gameData, io) {
         next();
     }
 
-    /**
-     * Sincroniza todos os jogadores na mesma sala.
-     */
     function broadcastSync(roomCode, type = 'state_update') {
         if (io && roomCode) {
             const players = gameData.getAllPlayersInRoom(roomCode);
@@ -39,74 +32,62 @@ export default function init(gameServices, gameData, io) {
 
             const isHost = String(room.hostId) === String(userId);
             const playersInRoom = gameData.getAllPlayersInRoom(room.code);
-            const timeLeft = room.timerExpiresAt ? Math.max(0, Math.floor((room.timerExpiresAt - Date.now()) / 1000)) : 0;
             
-            // Obtemos a pool de temas acumulada para mostrar ou usar na lógica
-            const themePool = gameData.getThemeSuggestions(room.code);
+            // CALCULO DO TEMPO REAL RESTANTE
+            let timeLeft = 0;
+            if (room.timerExpiresAt) {
+                timeLeft = Math.max(0, Math.floor((room.timerExpiresAt - Date.now()) / 1000));
+            }
 
-            // Dados globais para as Views
-            const viewData = { 
-                player, 
-                room, 
-                isHost, 
-                players: playersInRoom, 
-                timeLeft, 
-                theme: room.currentTheme,
-                themePool // Adicionado para persistência visual se necessário
-            };
+            const viewData = { player, room, isHost, players: playersInRoom, timeLeft, theme: room.currentTheme };
 
             switch(room.status) {
-                case 'LOBBY': 
-                    return res.render('room-view', viewData);
-                
+                case 'LOBBY': return res.render('room-view', viewData);
                 case 'THEME_SUBMISSION': 
-                    // Se o jogador já submeteu nesta ronda, vai para a espera
-                    if (room.submittedPlayers.has(userId)) {
-                        return res.render('theme-waiting-view', viewData);
-                    }
-                    return res.render('theme-submit-view', viewData);
-                
+                    return res.render(room.submittedPlayers.has(userId) ? 'theme-waiting-view' : 'theme-submit-view', viewData);
                 case 'THEME_VOTING': 
-                    if (room.themeVotes.has(userId)) {
-                        return res.render('theme-waiting-vote-view', viewData);
-                    }
+                    if (room.themeVotes.has(userId)) return res.render('theme-waiting-vote-view', viewData);
                     return res.render('theme-vote-view', { ...viewData, ballot: room.themeBallot });
-                
-                case 'THEME_WINNER': 
-                    return res.render('theme-winner-view', viewData);
-                
+                case 'THEME_WINNER': return res.render('theme-winner-view', viewData);
                 case 'GIF_SUBMISSION': 
-                    if (room.gifs.has(userId)) {
-                        return res.render('gif-waiting-view', viewData);
-                    }
-                    return res.render('gif-submit-view', viewData);
-                
+                    return res.render(room.gifs.has(userId) ? 'gif-waiting-view' : 'gif-submit-view', viewData);
                 case 'GIF_VOTING':
                     if (room.votes.has(userId)) return res.render('gif-waiting-vote-view', viewData);
                     return res.render('gif-vote-view', { ...viewData, gifs: Array.from(room.gifs.values()) });
-                
                 case 'RESULTS':
                     const roundRes = await gameServices.obterResultadosGlobais(room.code);
                     return res.render('results-view', { ...viewData, results: roundRes });
-                
                 case 'FINAL_RANKING':
                     const podium = [...playersInRoom].sort((a, b) => b.score - a.score);
                     return res.render('final-podium-view', { ...viewData, podium });
-                
-                default: 
-                    return res.render('login-view');
+                default: return res.render('login-view');
             }
         });
 
-        // --- SALAS ---
-        app.get('/room/create', (req, res) => res.render('room-create-view'));
-        app.get('/room/join', (req, res) => res.render('room-join-view', { error: req.query.error }));
+        // --- GESTÃO DE PERFIL ---
+        app.get('/profile', (req, res) => {
+            const player = gameData.getPlayer(req.cookies.userId);
+            if (!player) return res.redirect('/');
+            res.render('user-profile-view', { player });
+        });
 
-        app.post('/login', (req, res) => {
-            gameData.addPlayer(req.cookies.userId, req.body.name);
+        app.post('/profile/update', (req, res) => {
+            const player = gameData.getPlayer(req.cookies.userId);
+            if (player && req.body.name) {
+                player.name = req.body.name;
+                if (player.roomId) broadcastSync(player.roomId, 'player_update');
+            }
             res.redirect('/');
         });
 
+        // --- SALAS (GET) ---
+        // Estas rotas estavam em falta e causavam o erro Cannot GET
+        app.get('/room/create', (req, res) => res.render('room-create-view'));
+        app.get('/room/join', (req, res) => res.render('room-join-view', { error: req.query.error }));
+
+        // --- SALAS (POST) ---
+        app.post('/login', (req, res) => { gameData.addPlayer(req.cookies.userId, req.body.name); res.redirect('/'); });
+        
         app.post('/room/create', (req, res) => {
             const room = gameData.createRoom(req.cookies.userId);
             gameData.updateRoomConfigs(room.code, req.body);
@@ -118,6 +99,7 @@ export default function init(gameServices, gameData, io) {
             const room = gameData.getRoom(code);
             if (!room) return res.redirect('/room/join?error=Código inválido');
             
+            // Validação de nome duplicado na sala
             const currentPlayer = gameData.getPlayer(req.cookies.userId);
             const playersInRoom = gameData.getAllPlayersInRoom(code);
             if (playersInRoom.some(p => p.name.toLowerCase() === currentPlayer.name.toLowerCase() && p.id !== currentPlayer.id)) {
@@ -130,27 +112,22 @@ export default function init(gameServices, gameData, io) {
         });
 
         app.post('/game/start', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            const room = gameData.getRoom(player?.roomId);
-            if (room && String(room.hostId) === String(userId)) {
-                gameData.updateRoomConfigs(room.code, req.body);
-                gameData.updateRoomStatus(room.code, 'THEME_SUBMISSION');
-                broadcastSync(room.code, 'state_update');
+            const player = gameData.getPlayer(req.cookies.userId);
+            if (player?.roomId) {
+                gameData.updateRoomConfigs(player.roomId, req.body);
+                gameData.updateRoomStatus(player.roomId, 'THEME_SUBMISSION');
+                broadcastSync(player.roomId, 'state_update');
             }
             res.redirect('/');
         });
 
-        // --- LÓGICA DE TEMAS (CONTROLO DE NOVOS TEMAS) ---
+        // --- LOGICA DE JOGO ---
         app.post('/theme/submit', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
-                // Adiciona a nova sugestão ao banco (themePool) e marca jogador como tendo submetido nesta ronda
                 gameData.addThemeSuggestion(player.roomId, userId, req.body.tema);
                 const room = gameData.getRoom(player.roomId);
-                
-                // Se todos submeteram NOVO tema, avança para a votação
                 if (room.submittedPlayers.size >= room.playersIds.size) {
                     await gameServices.startThemeVote(room.code);
                     broadcastSync(room.code, 'state_update');
@@ -159,22 +136,7 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        // Unificação de rotas de fim de tempo para evitar o erro de "0s"
         app.post('/theme/auto-finish', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
-                    await gameServices.startThemeVote(room.code);
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
-        });
-
-        // Suporte para o nome de rota usado em alguns templates legados
-        app.post('/theme/vote/start', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
@@ -201,7 +163,6 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        // --- GIFS ---
         app.post('/gif/start-phase', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -256,7 +217,6 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        // --- RONDA E RESTART ---
         app.post('/game/next-round', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);

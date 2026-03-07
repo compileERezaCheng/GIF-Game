@@ -2,7 +2,6 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GIFWARS - Galeria de Votação</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
@@ -18,31 +17,41 @@
         <div class="text-center space-y-2">
             <span class="text-purple-400 font-black uppercase tracking-[0.4em] text-[10px]">A Grande Batalha</span>
             <h2 class="text-4xl md:text-5xl font-black italic text-white uppercase drop-shadow-lg leading-tight">
-                Qual é o melhor GIF para "{{theme}}"?
+                Qual o melhor GIF para "{{theme}}"?
             </h2>
         </div>
 
-        <!-- Grelha de GIFs Enviados pelos Jogadores -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {{#each gifs}}
-            <form action="/gif/vote" method="POST" class="h-full">
-                <input type="hidden" name="gifId" value="{{this.id}}">
-                <button type="submit" class="w-full h-full glass p-4 rounded-[32px] border-2 border-white/5 hover:border-purple-600 hover:scale-105 transition-all shadow-2xl group relative overflow-hidden">
-                    <div class="rounded-2xl overflow-hidden aspect-video bg-black flex items-center justify-center mb-4">
-                        <img src="{{this.url}}" class="w-full h-full object-contain">
-                    </div>
-                    <div class="py-2">
-                        <span class="bg-purple-600/20 text-purple-400 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                            Votar neste!
-                        </span>
-                    </div>
-                </button>
-            </form>
+                <div class="h-full">
+                    {{#if (eq this.playerId ../player.id)}}
+                        <!-- Bloqueio Visual: Teu próprio GIF -->
+                        <div class="w-full h-full glass p-5 rounded-[32px] border-2 border-white/5 opacity-25 grayscale cursor-not-allowed flex flex-col items-center">
+                            <div class="rounded-2xl overflow-hidden aspect-video bg-black mb-4 w-full">
+                                <img src="{{this.url}}" class="w-full h-full object-contain">
+                            </div>
+                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">O teu candidato</span>
+                        </div>
+                    {{else}}
+                        <!-- Opção Clicável para os outros -->
+                        <form action="/gif/vote" method="POST" class="h-full">
+                            <input type="hidden" name="gifId" value="{{this.id}}">
+                            <button type="submit" class="w-full h-full glass p-5 rounded-[32px] border-2 border-white/5 hover:border-purple-600 hover:scale-[1.03] transition-all shadow-2xl group flex flex-col items-center">
+                                <div class="rounded-2xl overflow-hidden aspect-video bg-black mb-4 w-full">
+                                    <img src="{{this.url}}" class="w-full h-full object-contain">
+                                </div>
+                                <span class="bg-purple-600/20 text-purple-400 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest group-hover:bg-purple-600 group-hover:text-white transition-all">
+                                    Votar neste
+                                </span>
+                            </button>
+                        </form>
+                    {{/if}}
+                </div>
             {{/each}}
         </div>
 
-        <div class="text-center opacity-40 italic text-sm py-10">
-            Clica no GIF que achas mais engraçado para este tema!
+        <div class="text-center opacity-40 italic text-[10px] py-10 font-black uppercase tracking-widest">
+            A Arena não permite o auto-voto
         </div>
     </main>
 

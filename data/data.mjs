@@ -1,12 +1,8 @@
 import crypto from 'crypto';
 
-/**
- * Gestão de Dados da Arena
- * themePool agora é persistente entre rondas para acumular sugestões.
- */
 export default function init() {
-    const players = new Map();    // userId -> { id, name, score, roomId }
-    const rooms = new Map();      // roomCode -> { status, configs, ... }
+    const players = new Map();
+    const rooms = new Map();
 
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
@@ -50,7 +46,7 @@ export default function init() {
             gifs: new Map(),
             votes: new Map(),
             playersIds: new Set([hostId]),
-            themePool: new Set(), // Banco de sugestões persistente
+            themePool: new Set(),
             submittedPlayers: new Set(),
             timerExpiresAt: null,
             configs: { rounds: 3, suggestionTime: 1, submissionTime: 2 }
@@ -82,13 +78,27 @@ export default function init() {
 
     function updateRoomStatus(code, status) {
         const room = rooms.get(code);
-        if (room) {
-            room.status = status;
-            if (status === 'THEME_SUBMISSION') {
-                room.timerExpiresAt = Date.now() + (room.configs.suggestionTime * 60 * 1000);
-            } else if (status === 'GIF_SUBMISSION') {
-                room.timerExpiresAt = Date.now() + (room.configs.submissionTime * 60 * 1000);
-            }
+        if (!room) return;
+
+        room.status = status;
+        const now = Date.now();
+
+        // DEFINIÇÃO DE TIMESTAMPS REAIS (MS)
+        switch(status) {
+            case 'THEME_SUBMISSION':
+                room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
+                break;
+            case 'THEME_WINNER':
+                room.timerExpiresAt = now + 5000; // 5 segundos fixos
+                break;
+            case 'GIF_SUBMISSION':
+                room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
+                break;
+            case 'RESULTS':
+                room.timerExpiresAt = now + 15000; // 15 segundos fixos
+                break;
+            default:
+                room.timerExpiresAt = null;
         }
     }
 
@@ -110,10 +120,6 @@ export default function init() {
         if (p) p.score += pts;
     }
 
-    /**
-     * Limpa apenas o necessário para a próxima ronda.
-     * themePool NÃO é limpo para salvar os temas entre rondas.
-     */
     function resetRoomRound(code) {
         const room = rooms.get(code);
         if (room) {
@@ -124,7 +130,6 @@ export default function init() {
             room.themeBallot = [];
             room.currentTheme = null;
             room.timerExpiresAt = null;
-            // room.themePool.clear(); <-- COMENTADO PARA SALVAR TEMAS
         }
     }
 
@@ -134,7 +139,7 @@ export default function init() {
             resetRoomRound(code);
             room.round = 1;
             room.status = 'LOBBY';
-            room.themePool.clear(); // Limpa temas apenas no final do campeonato
+            room.themePool.clear();
             room.playersIds.forEach(id => {
                 if (players.has(id)) players.get(id).score = 0;
             });
