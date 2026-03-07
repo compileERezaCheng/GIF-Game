@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Escolha</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+    {{> header}}
+    <main class="max-w-md mx-auto mt-20 space-y-6">
+        <div class="glass p-10 rounded-3xl text-center">
+            <h2 class="text-2xl font-bold mb-6 italic uppercase tracking-wider">O que queres fazer, {{player.name}}?</h2>
+            
+            <div class="grid gap-4">
+                <a href="/room/create" class="block bg-purple-600 hover:bg-purple-700 p-6 rounded-2xl font-bold text-lg shadow-lg transition-all">
+                    CRIAR NOVA SALA
+                </a>
+                <div class="flex items-center gap-4 my-2">
+                    <div class="flex-1 h-px bg-white/10"></div>
+                    <span class="text-xs text-gray-500 font-bold uppercase">OU</span>
+                    <div class="flex-1 h-px bg-white/10"></div>
+                </div>
+                <a href="/room/join" class="block glass hover:bg-white/10 p-6 rounded-2xl font-bold text-lg transition-all">
+                    ENTRAR COM CÓDIGO
+                </a>
+            </div>
+        </div>
+    </main>
+    {{> footer}}
+</body>
+</html>

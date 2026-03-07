@@ -1,104 +1,149 @@
 import crypto from 'crypto';
 
+/**
+ * Gestão de Dados da Arena
+ * themePool agora é persistente entre rondas para acumular sugestões.
+ */
 export default function init() {
-    const players = new Map(); 
-    const themeSuggestions = new Set(); 
-    const game = {
-        status: 'waiting',
-        round: 1,
-        currentTheme: null,
-        themeBallot: [], 
-        themeVotes: new Map(), 
-        gifs: new Map(),  
-        votes: new Map()  
-    };
+    const players = new Map();    // userId -> { id, name, score, roomId }
+    const rooms = new Map();      // roomCode -> { status, configs, ... }
 
     return {
-        addPlayer, removePlayer, getPlayer, getAllPlayers, updatePlayerScore,
-        updateGameState, getGameState, setTheme, addThemeSuggestion, getThemeSuggestions,
-        setThemeBallot, castThemeVote, getThemeVotes,
-        addGif, updateGif, getGifByPlayer, getAllGifs,
-        setVote, getAllVotes, resetRound, fullReset
+        addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
+        createRoom, getRoom, joinRoom, updateRoomStatus, updateRoomConfigs,
+        addThemeSuggestion, getThemeSuggestions, resetRoomRound, fullReset, softResetRoom
     };
 
-    function addPlayer(socketId, name) {
-        const newPlayer = { id: socketId, name, score: 0 };
-        players.set(socketId, newPlayer);
+    function addPlayer(userId, name) {
+        if (players.has(userId)) {
+            players.get(userId).name = name;
+            return players.get(userId);
+        }
+        const newPlayer = { id: userId, name, score: 0, roomId: null };
+        players.set(userId, newPlayer);
         return newPlayer;
-    }
-
-    function updatePlayerScore(playerId, points) {
-        const player = players.get(playerId);
-        if (player) player.score += points;
-    }
-
-    function removePlayer(socketId) {
-        const p = players.get(socketId);
-        players.delete(socketId);
-        return p;
     }
 
     function getPlayer(id) { return players.get(id); }
     function getAllPlayers() { return Array.from(players.values()); }
-    
-    function getGameState() { 
-        return {
-            ...game,
-            themePool: Array.from(themeSuggestions),
-            themeVotesCount: game.themeVotes.size,
-            gifsCount: game.gifs.size
-        }; 
+
+    function getAllPlayersInRoom(code) {
+        const room = rooms.get(code);
+        if (!room) return [];
+        return Array.from(room.playersIds).map(id => players.get(id));
     }
 
-    function updateGameState(s) { game.status = s; return getGameState(); }
-    function setTheme(t) { game.currentTheme = t; }
-    function setThemeBallot(temas) { game.themeBallot = temas; }
-    function castThemeVote(pId, tema) { game.themeVotes.set(pId, tema); }
-    function getThemeVotes() { return Array.from(game.themeVotes.entries()); }
-    function addThemeSuggestion(t) { themeSuggestions.add(t); }
-    function getThemeSuggestions() { return Array.from(themeSuggestions); }
-    
-    function addGif(playerId, url) {
-        const id = crypto.randomUUID(); 
-        const newGif = { id, playerId, url };
-        game.gifs.set(id, newGif);
-        return newGif;
+    function createRoom(hostId) {
+        let code;
+        do {
+            code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        } while (rooms.has(code));
+
+        const room = {
+            code,
+            hostId,
+            status: 'LOBBY',
+            round: 1,
+            currentTheme: null,
+            themeBallot: [],
+            themeVotes: new Map(),
+            gifs: new Map(),
+            votes: new Map(),
+            playersIds: new Set([hostId]),
+            themePool: new Set(), // Banco de sugestões persistente
+            submittedPlayers: new Set(),
+            timerExpiresAt: null,
+            configs: { rounds: 3, suggestionTime: 1, submissionTime: 2 }
+        };
+
+        rooms.set(code, room);
+        if (players.has(hostId)) players.get(hostId).roomId = code;
+        return room;
     }
 
-    function updateGif(gifId, url) {
-        const g = game.gifs.get(gifId);
-        if (g) g.url = url;
-        return g;
+    function joinRoom(userId, code) {
+        const room = rooms.get(code);
+        if (!room) return null;
+        room.playersIds.add(userId);
+        if (players.has(userId)) players.get(userId).roomId = code;
+        return room;
     }
 
-    function getGifByPlayer(pId) { 
-        return Array.from(game.gifs.values()).find(g => g.playerId === pId); 
+    function getRoom(code) { return rooms.get(code); }
+
+    function updateRoomConfigs(code, configs) {
+        const room = rooms.get(code);
+        if (room) {
+            room.configs.rounds = parseInt(configs.rounds) || room.configs.rounds;
+            room.configs.suggestionTime = parseInt(configs.suggestionTime) || room.configs.suggestionTime;
+            room.configs.submissionTime = parseInt(configs.submissionTime) || room.configs.submissionTime;
+        }
     }
 
-    function getAllGifs() { return Array.from(game.gifs.values()); }
-    function setVote(pId, gId) { game.votes.set(pId, gId); }
-    function getAllVotes() { return Array.from(game.votes.entries()); }
+    function updateRoomStatus(code, status) {
+        const room = rooms.get(code);
+        if (room) {
+            room.status = status;
+            if (status === 'THEME_SUBMISSION') {
+                room.timerExpiresAt = Date.now() + (room.configs.suggestionTime * 60 * 1000);
+            } else if (status === 'GIF_SUBMISSION') {
+                room.timerExpiresAt = Date.now() + (room.configs.submissionTime * 60 * 1000);
+            }
+        }
+    }
 
-    function resetRound() {
-        game.gifs.clear();
-        game.votes.clear();
-        game.themeVotes.clear();
-        game.themeBallot = [];
-        game.currentTheme = null;
-        game.round += 1; 
-        game.status = 'waiting'; 
-        return getGameState();
+    function addThemeSuggestion(code, userId, theme) {
+        const room = rooms.get(code);
+        if (room && theme) {
+            room.themePool.add(theme.trim());
+            room.submittedPlayers.add(userId);
+        }
+    }
+
+    function getThemeSuggestions(code) {
+        const room = rooms.get(code);
+        return room ? Array.from(room.themePool) : [];
+    }
+
+    function updatePlayerScore(userId, pts) {
+        const p = players.get(userId);
+        if (p) p.score += pts;
+    }
+
+    /**
+     * Limpa apenas o necessário para a próxima ronda.
+     * themePool NÃO é limpo para salvar os temas entre rondas.
+     */
+    function resetRoomRound(code) {
+        const room = rooms.get(code);
+        if (room) {
+            room.gifs.clear();
+            room.votes.clear();
+            room.themeVotes.clear();
+            room.submittedPlayers.clear();
+            room.themeBallot = [];
+            room.currentTheme = null;
+            room.timerExpiresAt = null;
+            // room.themePool.clear(); <-- COMENTADO PARA SALVAR TEMAS
+        }
+    }
+
+    function softResetRoom(code) {
+        const room = rooms.get(code);
+        if (room) {
+            resetRoomRound(code);
+            room.round = 1;
+            room.status = 'LOBBY';
+            room.themePool.clear(); // Limpa temas apenas no final do campeonato
+            room.playersIds.forEach(id => {
+                if (players.has(id)) players.get(id).score = 0;
+            });
+        }
     }
 
     function fullReset() {
-        game.gifs.clear();
-        game.votes.clear();
-        game.themeVotes.clear();
-        game.themeBallot = [];
-        game.currentTheme = null;
-        game.round = 1;
-        game.status = 'waiting';
-        players.forEach(p => p.score = 0);
-        return getGameState();
+        rooms.clear();
+        players.forEach(p => { p.score = 0; p.roomId = null; });
+        return { success: true };
     }
 }

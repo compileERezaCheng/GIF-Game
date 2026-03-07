@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIFWARS - Galeria de Votação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+
+    {{> header}}
+
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-6xl mx-auto space-y-12 mt-6">
+        
+        <div class="text-center space-y-2">
+            <span class="text-purple-400 font-black uppercase tracking-[0.4em] text-[10px]">A Grande Batalha</span>
+            <h2 class="text-4xl md:text-5xl font-black italic text-white uppercase drop-shadow-lg leading-tight">
+                Qual é o melhor GIF para "{{theme}}"?
+            </h2>
+        </div>
+
+        <!-- Grelha de GIFs Enviados pelos Jogadores -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {{#each gifs}}
+            <form action="/gif/vote" method="POST" class="h-full">
+                <input type="hidden" name="gifId" value="{{this.id}}">
+                <button type="submit" class="w-full h-full glass p-4 rounded-[32px] border-2 border-white/5 hover:border-purple-600 hover:scale-105 transition-all shadow-2xl group relative overflow-hidden">
+                    <div class="rounded-2xl overflow-hidden aspect-video bg-black flex items-center justify-center mb-4">
+                        <img src="{{this.url}}" class="w-full h-full object-contain">
+                    </div>
+                    <div class="py-2">
+                        <span class="bg-purple-600/20 text-purple-400 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                            Votar neste!
+                        </span>
+                    </div>
+                </button>
+            </form>
+            {{/each}}
+        </div>
+
+        <div class="text-center opacity-40 italic text-sm py-10">
+            Clica no GIF que achas mais engraçado para este tema!
+        </div>
+    </main>
+
+    {{> footer}}
+
+</body>
+</html>

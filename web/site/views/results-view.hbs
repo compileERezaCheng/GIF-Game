@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Vencedores</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+
+    {{> header}}
+
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-5xl mx-auto space-y-12 mt-6">
+        
+        <div class="text-center space-y-2">
+            <h2 class="text-5xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-purple-500 to-pink-500 uppercase leading-tight">
+                RESULTADOS DA RONDA
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-{{results.winners.length}} gap-6 max-w-4xl mx-auto">
+            {{#each results.winners}}
+            <div class="glass p-8 rounded-[40px] relative border border-white/10 text-center animate-in zoom-in duration-500">
+                <div class="inline-flex items-center gap-2 bg-yellow-500 text-black px-4 py-1 rounded-full text-[10px] font-black uppercase mb-6">
+                    <i data-lucide="crown" class="w-3 h-3"></i> Vencedor
+                </div>
+                <div class="rounded-3xl overflow-hidden aspect-video bg-black mb-6 border-2 border-yellow-500/20">
+                    <img src="{{this.url}}" class="w-full h-full object-contain">
+                </div>
+                <h3 class="text-2xl font-black text-white italic uppercase">{{this.dono}}</h3>
+                <p class="text-yellow-500 font-black text-sm">{{this.votos}} VOTOS</p>
+            </div>
+            {{/each}}
+        </div>
+
+        <div class="max-w-md mx-auto">
+            <div class="flex flex-col items-center gap-4">
+                <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="bg-purple-500 h-full w-full transition-all duration-[15000ms] ease-linear"></div>
+                </div>
+                <p class="text-gray-500 text-xs font-black uppercase tracking-widest">A avançar em <span id="countdown-text">15</span>s...</p>
+            </div>
+        </div>
+
+        <div class="glass p-10 rounded-[48px] border border-white/5 bg-white/5 max-w-3xl mx-auto">
+            <h4 class="text-center text-[10px] font-black text-gray-500 uppercase tracking-[0.5em] mb-10">Ranking Geral</h4>
+            <div class="space-y-4">
+                {{#each players}}
+                <div class="flex items-center justify-between p-6 bg-black/30 rounded-3xl">
+                    <span class="font-black text-xl italic uppercase {{#if (eq this.id ../player.id)}}text-purple-400{{/if}}">{{this.name}}</span>
+                    <span class="text-3xl font-black italic">{{this.score}} PTS</span>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+    </main>
+
+    {{> footer}}
+
+    <script>
+        let seconds = 15;
+        const text = document.getElementById('countdown-text');
+        const bar = document.getElementById('progress-bar');
+        setTimeout(() => { if(bar) bar.style.width = '0%'; }, 50);
+
+        const timer = setInterval(() => {
+            seconds--;
+            if(text) text.innerText = seconds;
+            if (seconds <= 0) {
+                clearInterval(timer);
+                {{#if isHost}}
+                    fetch('/game/next-round', { method: 'POST' });
+                {{/if}}
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

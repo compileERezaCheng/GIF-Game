@@ -1,41 +1,65 @@
+/**
+ * Módulo de API (REST) - APENAS PARA TESTES HTTP
+ * Este ficheiro não é usado pelo site, serve para testares via ficheiro .http
+ */
 export default function init(gameServices, gameData) {
     return { setupSockets, setupRestRoutes };
 
     function setupSockets(io) {
+        // Para os testes REST, o socket.io pode ficar vazio ou apenas com logs
         io.on('connection', (socket) => {
-            socket.on('join_game', (name) => {
-                const res = gameServices.handlePlayerJoin(socket.id, name);
-                if (res.error) socket.emit('game_error', res.error);
-                else io.emit('update_players', res.allPlayers);
-            });
-            socket.on('disconnect', () => {
-                const res = gameServices.handlePlayerLeave(socket.id);
-                io.emit('update_players', res.allPlayers);
-            });
+            console.log('🧪 Teste: Socket ligado para debug:', socket.id);
         });
     }
 
     function setupRestRoutes(app) {
-        app.get('/api/game', (req, res) => res.json(gameData.getGameState()));
-        app.get('/api/players', (req, res) => res.json(gameServices.obterTodosOsJogadores()));
-        app.get('/api/themes/suggestions', (req, res) => res.json(gameServices.obterSugestoes()));
-        app.get('/api/gifs', (req, res) => res.json(gameServices.obterGifs()));
-        app.get('/api/results', (req, res) => res.json(gameServices.obterResultadosGlobais()));
-        app.get('/api/leaderboard', (req, res) => res.json(gameServices.obterTodosOsJogadores().sort((a,b) => b.score - a.score)));
-
-        app.post('/api/themes/suggest', (req, res) => res.json(gameServices.sugerirTema(req.body.tema)));
-        app.post('/api/game/start', (req, res) => res.json(gameServices.startGame()));
-        app.post('/api/themes/vote', (req, res) => res.json(gameServices.votarNoTema(req.body.playerId, req.body.tema)));
-        app.post('/api/themes/finish', (req, res) => res.json(gameServices.finalizarVotacaoTema()));
-        app.post('/api/gifs', (req, res) => res.json(gameServices.adicionarGif(req.body.playerId, req.body.url)));
-        app.post('/api/votes', (req, res) => res.json(gameServices.votar(req.body.playerId, req.body.gifId)));
+        // --- CONSULTAS ---
         
-        app.post('/api/test/reset-round', (req, res) => res.json(gameServices.reiniciarRonda()));
-        app.post('/api/test/full-reset', (req, res) => res.json(gameServices.reiniciarJogoCompleto()));
-        app.post('/api/test/status/:fase', (req, res) => res.json(gameData.updateGameState(req.params.fase)));
-        app.post('/api/test/join/:name', (req, res) => {
-            const fakeId = 'rest_' + Math.random().toString(36).substring(7);
-            res.json(gameServices.handlePlayerJoin(fakeId, req.params.name));
+        // Ver estado de uma sala específica
+        app.get('/api/test/room/:code', (req, res) => {
+            const room = gameData.getRoom(req.params.code.toUpperCase());
+            res.json(room || { error: "Sala não encontrada" });
+        });
+
+        // Ver todos os jogadores de uma sala
+        app.get('/api/test/room/:code/players', (req, res) => {
+            res.json(gameData.getAllPlayersInRoom(req.params.code.toUpperCase()));
+        });
+
+        // --- AÇÕES DE TESTE (Simular passos do jogo) ---
+
+        // Criar um jogador "fake" numa sala
+        app.post('/api/test/join/:code/:name', async (req, res) => {
+            const fakeUserId = 'test_user_' + Math.random().toString(36).substring(7);
+            const player = await gameServices.login(fakeUserId, req.params.name);
+            const room = gameData.joinRoom(fakeUserId, req.params.code.toUpperCase());
+            res.json({ player, room });
+        });
+
+        // Forçar início de jogo numa sala
+        app.post('/api/test/room/:code/start', async (req, res) => {
+            const room = gameData.getRoom(req.params.code.toUpperCase());
+            if (!room) return res.json({ error: "Sala não existe" });
+            
+            await gameServices.startGame(room.hostId, 3); // Inicia com 3 rondas por defeito
+            res.json({ success: true, status: "THEME_SUBMISSION" });
+        });
+
+        // Ver sugestões de temas
+        app.get('/api/test/room/:code/themes', (req, res) => {
+            res.json(gameData.getThemeSuggestions(req.params.code.toUpperCase()));
+        });
+
+        // Forçar reset de uma sala
+        app.post('/api/test/room/:code/reset', (req, res) => {
+            const code = req.params.code.toUpperCase();
+            gameData.resetRoomRound(code);
+            res.json({ success: true, message: "Ronda da sala " + code + " limpa." });
+        });
+
+        // Full Reset (Limpa tudo no servidor)
+        app.post('/api/test/full-reset', (req, res) => {
+            res.json(gameData.fullReset ? gameData.fullReset() : { message: "Função não implementada" });
         });
     }
 }

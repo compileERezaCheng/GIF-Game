@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Sugerir Tema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+
+    {{> header}}
+
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-4xl mx-auto mt-10">
+        <div class="glass p-10 rounded-[40px] text-center border-t border-white/10 relative">
+            
+            <div class="mb-8 flex justify-center">
+                <div class="w-24 h-24 rounded-full border-4 border-purple-500 flex items-center justify-center bg-black/40 shadow-xl">
+                    <span id="timer" class="text-3xl font-black text-white">--</span>
+                </div>
+            </div>
+
+            <h2 class="text-4xl font-black mb-2 italic uppercase tracking-tighter">Sugere um Tema</h2>
+            <p class="text-gray-400 text-sm mb-10 italic">O que é que vamos parodiar nesta ronda?</p>
+
+            <form action="/theme/submit" method="POST" class="max-w-md mx-auto space-y-6">
+                <input type="text" name="tema" placeholder="Ex: O Duarte no ginásio..." required 
+                    class="w-full p-6 bg-gray-900 border-2 border-gray-800 rounded-3xl text-white text-center text-xl focus:border-purple-600 outline-none transition-all">
+                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white p-5 rounded-3xl font-black text-xl shadow-2xl transition-all active:scale-95">
+                    LANÇAR TEMA
+                </button>
+            </form>
+        </div>
+    </main>
+
+    {{> footer}}
+
+    <script>
+        let timeLeft = parseInt("{{timeLeft}}");
+        const timerElement = document.getElementById('timer');
+
+        const interval = setInterval(() => {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            timerElement.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                timerElement.innerText = "0:00";
+                {{#if isHost}}
+                    fetch('/theme/auto-finish', { method: 'POST' });
+                {{/if}}
+            }
+            timeLeft--;
+        }, 1000);
+    </script>
+</body>
+</html>

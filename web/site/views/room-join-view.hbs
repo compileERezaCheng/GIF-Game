@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Entrar na Sala</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+    {{> header}}
+    <main class="max-w-md mx-auto mt-20">
+        <form action="/room/join" method="POST" class="glass p-8 rounded-3xl text-center space-y-6">
+            <h2 class="text-2xl font-bold italic uppercase tracking-wider">Inserir Código</h2>
+            {{#if error}}
+                <p class="text-red-500 bg-red-500/10 p-3 rounded-xl text-sm font-bold">{{error}}</p>
+            {{/if}}
+            <input type="text" name="code" placeholder="EX: A7B2X9" required maxlength="6"
+                class="w-full p-6 bg-gray-800 border-2 border-gray-700 rounded-2xl text-white text-center text-3xl font-black uppercase tracking-widest focus:border-purple-500 outline-none">
+            
+            <button type="submit" class="w-full bg-purple-600 p-4 rounded-xl font-bold">ENTRAR NA SALA</button>
+            <a href="/" class="block text-gray-500 text-sm hover:underline">Voltar</a>
+        </form>
+    </main>
+    {{> footer}}
+</body>
+</html>

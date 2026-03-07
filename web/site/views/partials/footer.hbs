@@ -1,0 +1,39 @@
+<footer class="max-w-4xl mx-auto py-12 text-center text-gray-600 text-[10px] font-bold uppercase tracking-[0.4em] mt-20 opacity-50">
+    <p>&copy; 2026 GIFWARS Arena — Todos os direitos reservados</p>
+</footer>
+
+<div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 glass px-8 py-4 rounded-3xl shadow-2xl opacity-0 transition-all pointer-events-none z-50 flex items-center gap-4 border border-white/10 translate-y-4">
+    <i data-lucide="zap" class="text-purple-400 w-5 h-5"></i>
+    <span id="toast-msg" class="text-white font-black text-xs uppercase tracking-widest"></span>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    lucide.createIcons();
+    const socket = io();
+
+    const roomCodeEl = document.getElementById('room-code-display');
+    if (roomCodeEl) {
+        socket.emit('join_room_socket', roomCodeEl.innerText.trim());
+    }
+
+    socket.on('room_sync', (data) => {
+        if (data.type === 'state_update') {
+            window.location.reload();
+        }
+    });
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        const m = document.getElementById('toast-msg');
+        if(!t || !m) return;
+        m.innerText = msg;
+        t.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+        t.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(() => {
+            t.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            t.classList.remove('opacity-100', 'translate-y-0');
+        }, 3000);
+    }
+</script>

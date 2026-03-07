@@ -1,110 +1,85 @@
-import { erroUser, erroJogo, MSG } from '../commons/errors.mjs';
-
 export default function init(gameData) {
-    if (!gameData) throw new Error("gameData is required.");
+    const defaultThemes = ["Segunda-feira às 8h", "Gatos vs Pepinos", "Expectativa vs Realidade", "Café matinal", "Programar com bugs"];
 
     return {
-        handlePlayerJoin, handlePlayerLeave, startGame,
-        votarNoTema, finalizarVotacaoTema,
-        sugerirTema, adicionarGif, votar, 
-        obterResultadosGlobais, reiniciarRonda, reiniciarJogoCompleto,
-        obterTodosOsJogadores, obterSugestoes, obterGifs
-    };
-
-    function handlePlayerJoin(socketId, playerName) {
-        if (!playerName || playerName.trim().length < 2) return { error: erroUser("Nome inválido.") };
-        const all = gameData.getAllPlayers();
-        if (all.some(p => p.name.toLowerCase() === playerName.toLowerCase()))
-            return { error: erroUser(`O nome '${playerName}' já existe.`) };
-
-        const player = gameData.addPlayer(socketId, playerName.trim());
-        return { success: true, player, allPlayers: gameData.getAllPlayers() };
-    }
-
-    function handlePlayerLeave(socketId) {
-        const removed = gameData.removePlayer(socketId);
-        if (gameData.getAllPlayers().length === 0) gameData.resetRound();
-        return { removed, allPlayers: gameData.getAllPlayers() };
-    }
-
-    function startGame() {
-        const pool = gameData.getThemeSuggestions();
-        if (gameData.getAllPlayers().length < 2) return { error: erroJogo("Mínimo 2 jogadores.") };
-        if (pool.length < 2) return { error: erroJogo(MSG.POUCOS_TEMAS) };
-
-        const sorteados = pool.sort(() => 0.5 - Math.random()).slice(0, 2);
-        gameData.setThemeBallot(sorteados);
-        return { success: true, ballot: sorteados, gameState: gameData.updateGameState('selecting_theme') };
-    }
-
-    function votarNoTema(playerId, temaEscolhido) {
-        const state = gameData.getGameState();
-        if (state.status !== 'selecting_theme') return { error: erroJogo(MSG.FASE_ERRADA_VOTO_TEMA) };
-        if (!state.themeBallot.includes(temaEscolhido)) return { error: erroUser(MSG.TEMA_NAO_DISPONIVEL) };
-
-        const votos = gameData.getThemeVotes();
-        if (votos.some(([pid]) => pid === playerId)) return { error: erroUser(MSG.JA_VOTOU_TEMA) };
-
-        gameData.castThemeVote(playerId, temaEscolhido);
-        return { success: true };
-    }
-
-    function finalizarVotacaoTema() {
-        const state = gameData.getGameState();
-        const votos = gameData.getThemeVotes();
-        const contagem = {};
-        state.themeBallot.forEach(t => contagem[t] = 0);
-        votos.forEach(([_, tema]) => contagem[tema]++);
-
-        const [temaA, temaB] = state.themeBallot;
-        const vencedor = contagem[temaA] >= contagem[temaB] ? temaA : temaB;
-
-        gameData.setTheme(vencedor);
-        return { success: true, temaVencedor: vencedor, contagem, gameState: gameData.updateGameState('playing') };
-    }
-
-    function adicionarGif(playerId, url) {
-        const state = gameData.getGameState();
-        if (state.status !== 'playing') return { error: erroJogo(MSG.FASE_ERRADA_GIF) };
-        if (gameData.getGifByPlayer(playerId)) return { error: erroUser(MSG.JA_ENVIOU) };
-        return { success: true, gif: gameData.addGif(playerId, url) };
-    }
-
-    function votar(playerId, gifId) {
-        const state = gameData.getGameState();
-        if (state.status !== 'voting') return { error: erroJogo(MSG.FASE_ERRADA_VOTO) };
-        const gif = gameData.getAllGifs().find(g => g.id === gifId);
-        if (!gif || gif.playerId === playerId) return { error: erroUser(MSG.VOTO_PROPRIO) };
+        login: (userId, name) => gameData.addPlayer(userId, name),
         
-        gameData.setVote(playerId, gifId);
-        gameData.updatePlayerScore(gif.playerId, 10);
-        return { success: true };
-    }
+        startThemeVote: async (roomCode) => {
+            const room = gameData.getRoom(roomCode);
+            let pool = gameData.getThemeSuggestions(roomCode);
+            if (pool.length < 2) {
+                const shuffled = [...defaultThemes].sort(() => 0.5 - Math.random());
+                pool = [...pool, ...shuffled.slice(0, 2)];
+            }
+            room.themeBallot = pool.sort(() => 0.5 - Math.random()).slice(0, 2);
+            gameData.updateRoomStatus(roomCode, 'THEME_VOTING');
+        },
 
-    function sugerirTema(tema) {
-        if (!tema || tema.trim().length < 3) return { error: erroUser(MSG.TEMA_CURTO) };
-        gameData.addThemeSuggestion(tema.trim());
-        return { success: true };
-    }
+        castThemeVote: async (userId, roomCode, theme) => {
+            const room = gameData.getRoom(roomCode);
+            if (room) room.themeVotes.set(userId, theme);
+        },
 
-    function obterResultadosGlobais() {
-        const state = gameData.getGameState();
-        const gifs = gameData.getAllGifs();
-        const votes = gameData.getAllVotes();
-        return {
-            tema: state.currentTheme,
-            resultados: gifs.map(g => ({
-                dono: gameData.getPlayer(g.playerId)?.name || "Anónimo",
-                url: g.url,
-                totalVotos: votes.filter(([_, t]) => t === g.id).length,
-                quemVotou: votes.filter(([_, t]) => t === g.id).map(([vid]) => gameData.getPlayer(vid)?.name || "Anónimo")
-            })).sort((a,b) => b.totalVotos - a.totalVotos)
-        };
-    }
+        finishThemeVote: async (roomCode) => {
+            const room = gameData.getRoom(roomCode);
+            if (!room) return;
+            const counts = {};
+            room.themeBallot.forEach(t => counts[t] = 0);
+            room.themeVotes.forEach(t => { if(counts[t] !== undefined) counts[t]++; });
+            
+            const [tA, tB] = room.themeBallot;
+            let vencedor = counts[tA] >= counts[tB] ? tA : tB;
+            if (counts[tA] === counts[tB]) vencedor = Math.random() > 0.5 ? tA : tB;
+            
+            // GARANTIA: O tema é guardado no objeto da sala
+            room.currentTheme = vencedor;
+            gameData.updateRoomStatus(roomCode, 'THEME_WINNER');
+        },
 
-    function reiniciarRonda() { return gameData.resetRound(); }
-    function reiniciarJogoCompleto() { return { success: true, gameState: gameData.fullReset() }; }
-    function obterTodosOsJogadores() { return gameData.getAllPlayers(); }
-    function obterSugestoes() { return gameData.getThemeSuggestions(); }
-    function obterGifs() { return gameData.getAllGifs(); }
+        // ... Restantes funções de submissão e votação ...
+        submitGif: async (userId, roomCode, url) => {
+            const room = gameData.getRoom(roomCode);
+            if (!room) return;
+            room.gifs.set(userId, { id: userId, url, playerId: userId, dono: gameData.getPlayer(userId)?.name || "Anónimo" });
+        },
+
+        castGifVote: async (userId, roomCode, gifId) => {
+            const room = gameData.getRoom(roomCode);
+            if (!room || userId === gifId) return; 
+            room.votes.set(userId, gifId);
+            const gifVotado = room.gifs.get(gifId);
+            if (gifVotado) gameData.updatePlayerScore(gifVotado.playerId, 10);
+        },
+
+        advanceRound: async (roomCode) => {
+            const room = gameData.getRoom(roomCode);
+            if (!room) return;
+            if (room.round < room.configs.rounds) {
+                gameData.resetRoomRound(roomCode);
+                room.round += 1;
+                gameData.updateRoomStatus(roomCode, 'THEME_SUBMISSION');
+            } else {
+                gameData.updateRoomStatus(roomCode, 'FINAL_RANKING');
+            }
+        },
+
+        obterResultadosGlobais: async (roomCode) => {
+            const room = gameData.getRoom(roomCode);
+            if (!room) return { winners: [] };
+            const voteCounts = {};
+            room.votes.forEach(gifId => { voteCounts[gifId] = (voteCounts[gifId] || 0) + 1; });
+            let max = 0;
+            for (const c of Object.values(voteCounts)) if (c > max) max = c;
+            const winners = [];
+            if (max > 0) {
+                for (const [id, count] of Object.entries(voteCounts)) {
+                    if (count === max) {
+                        const g = room.gifs.get(id);
+                        winners.push({ url: g.url, dono: g.dono, votos: count });
+                    }
+                }
+            }
+            return { winners };
+        }
+    };
 }

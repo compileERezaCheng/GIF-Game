@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIFWARS - Aguardando Guerreiros</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+    {{> header}}
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-4xl mx-auto mt-20 text-center">
+        <div class="glass p-16 rounded-[48px] border-t border-white/10 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
+            <div class="absolute inset-0 bg-purple-600/5 animate-pulse"></div>
+            
+            <div class="relative z-10">
+                <div class="mb-10 flex justify-center">
+                    <div class="p-5 bg-purple-500/10 rounded-full">
+                        <i data-lucide="clock" class="w-16 h-16 text-purple-500"></i>
+                    </div>
+                </div>
+
+                <h2 class="text-3xl font-black mb-4 italic uppercase tracking-tighter">GIF Submetido!</h2>
+                <p class="text-gray-400 text-lg mb-10 italic">Boa escolha! Agora relaxa enquanto os outros guerreiros escolhem os seus GIFs para o tema "{{theme}}"...</p>
+
+                <div class="flex flex-col items-center gap-6">
+                    <div class="flex gap-2">
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    </div>
+                    <div class="glass px-8 py-3 rounded-2xl bg-white/5 border-white/5">
+                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Aguardando submissões restantes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    {{> footer}}
+</body>
+</html>

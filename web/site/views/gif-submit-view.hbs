@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIFWARS - Enviar GIF</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+
+    {{> header}}
+
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-4xl mx-auto space-y-8 mt-6">
+        
+        <!-- Header da Fase -->
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="text-left space-y-2">
+                <span class="text-purple-400 font-black uppercase tracking-[0.3em] text-[10px]">Tema Ativo</span>
+                <h2 class="text-4xl md:text-5xl font-black italic text-white uppercase drop-shadow-lg leading-tight">
+                    "{{theme}}"
+                </h2>
+            </div>
+
+            <!-- Temporizador Visual -->
+            <div class="flex items-center gap-4 glass px-6 py-3 rounded-[32px] border-white/10">
+                <div class="relative w-12 h-12 flex items-center justify-center">
+                    <svg class="absolute inset-0 w-full h-full -rotate-90">
+                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="transparent" class="text-white/5"></circle>
+                        <circle id="timer-circle" cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="transparent" stroke-dasharray="125.6" stroke-dashoffset="0" class="text-purple-500 transition-all duration-1000"></circle>
+                    </svg>
+                    <span id="timer-text" class="text-sm font-black text-white relative z-10">--</span>
+                </div>
+                <div class="text-left">
+                    <p class="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Tempo Restante</p>
+                    <p id="timer-label" class="text-[10px] font-black text-purple-400 uppercase tracking-tight">A escolher...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Pesquisa -->
+        <div class="glass p-8 rounded-[40px] border-t border-white/10 shadow-2xl space-y-6">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="relative flex-1 group">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                    <input type="text" id="giphy-search-input" placeholder="Pesquisar no Giphy..." class="w-full pl-12 pr-4 py-4 bg-gray-900 border-2 border-gray-800 rounded-2xl text-white outline-none focus:border-purple-600 transition-all">
+                </div>
+                <button onclick="searchGiphy()" class="bg-purple-600 hover:bg-purple-700 px-10 py-4 rounded-2xl font-black text-sm uppercase transition-all shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4"></i> PROCURAR
+                </button>
+            </div>
+
+            <div id="giphy-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar p-2">
+                <div class="col-span-full flex flex-col items-center justify-center py-20 text-gray-600 space-y-4">
+                    <i data-lucide="image" class="w-12 h-12 opacity-10"></i>
+                    <p class="text-xs uppercase tracking-widest font-bold">Encontra o GIF que vai destruir os teus amigos!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview da Seleção -->
+        <div class="max-w-md mx-auto">
+            <form action="/gif/submit" method="POST" class="space-y-4">
+                <input type="hidden" name="url" id="selected-gif-url" required>
+                <div id="selection-preview" class="hidden glass p-6 rounded-[32px] border-2 border-purple-500 animate-in zoom-in duration-300 shadow-2xl">
+                    <div class="rounded-2xl overflow-hidden aspect-video bg-black mb-6 border border-white/10">
+                        <img id="preview-img" src="" class="w-full h-full object-contain">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 py-5 rounded-2xl font-black text-xl hover:bg-green-500 transition-all shadow-xl active:scale-95">
+                        ENVIAR PARA A ARENA
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    {{> footer}}
+
+    <script>
+        const GIPHY_KEY = 'gPLQPZTnNuIpDLPYfrhVMLGdCnfpR3qB'; 
+        let timeLeft = parseInt("{{timeLeft}}") || 60;
+        const initialTime = timeLeft;
+
+        // --- LÓGICA DO TEMPORIZADOR ---
+        const timerText = document.getElementById('timer-text');
+        const timerCircle = document.getElementById('timer-circle');
+        const circumference = 2 * Math.PI * 20;
+
+        const countdown = setInterval(() => {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            timerText.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            // Atualizar círculo
+            const offset = circumference - (timeLeft / initialTime) * circumference;
+            timerCircle.style.strokeDashoffset = offset;
+
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                // No fim do tempo, se não submeteu, o server avança para a votação se o Host disparar
+                {{#if isHost}}
+                    fetch('/gif/auto-finish', { method: 'POST' });
+                {{/if}}
+            }
+            timeLeft--;
+        }, 1000);
+
+        // --- PESQUISA GIPHY ---
+        async function searchGiphy() {
+            const query = document.getElementById('giphy-search-input').value;
+            const container = document.getElementById('giphy-results');
+            if (!query) return;
+
+            container.innerHTML = '<div class="col-span-full flex justify-center py-20"><div class="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div></div>';
+
+            try {
+                const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=g`;
+                const resp = await fetch(url);
+                const { data } = await resp.json();
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-500 font-bold uppercase text-xs">Sem resultados.</p>';
+                    return;
+                }
+
+                container.innerHTML = data.map(gif => `
+                    <div onclick="selectGif('${gif.images.fixed_height.url}')" class="rounded-2xl overflow-hidden cursor-pointer aspect-square bg-gray-900 border-2 border-transparent hover:border-purple-500 transition-all group shadow-md">
+                        <img src="${gif.images.fixed_height.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                    </div>
+                `).join('');
+                
+                lucide.createIcons();
+            } catch (e) {
+                container.innerHTML = '<p class="col-span-full text-center py-20 text-red-500">Erro na ligação.</p>';
+            }
+        }
+
+        function selectGif(url) {
+            document.getElementById('selected-gif-url').value = url;
+            document.getElementById('preview-img').src = url;
+            document.getElementById('selection-preview').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('selection-preview').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        document.getElementById('giphy-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchGiphy();
+        });
+    </script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(147, 51, 234, 0.5); border-radius: 10px; }
+    </style>
+</body>
+</html>

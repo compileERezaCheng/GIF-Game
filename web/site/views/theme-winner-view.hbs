@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Tema Vencedor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+
+    {{> header}}
+
+    <span id="room-code-display" class="hidden">{{room.code}}</span>
+
+    <main class="max-w-4xl mx-auto mt-20 text-center">
+        <div class="glass p-16 rounded-[48px] border-t-8 border-yellow-500 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
+            <div class="absolute -top-20 -left-20 w-60 h-60 bg-yellow-500/10 rounded-full blur-[80px]"></div>
+            
+            <div class="relative z-10">
+                <div class="inline-flex p-4 bg-yellow-500/10 rounded-2xl mb-8">
+                    <i data-lucide="trophy" class="text-yellow-500 w-12 h-12"></i>
+                </div>
+                
+                <h3 class="text-purple-400 font-black uppercase tracking-[0.4em] mb-4 text-xs italic">O Tema Escolhido é...</h3>
+                <h2 class="text-5xl md:text-6xl font-black italic text-white mb-12 uppercase leading-tight drop-shadow-2xl">
+                    "{{theme}}"
+                </h2>
+                
+                <div class="flex flex-col items-center gap-4">
+                    <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="bg-yellow-500 h-full w-full transition-all duration-[5000ms] ease-linear"></div>
+                    </div>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-widest italic">
+                        A começar batalha em <span id="countdown-text">5</span>s...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    {{> footer}}
+
+    <script>
+        let seconds = 5;
+        const textElement = document.getElementById('countdown-text');
+        const progressBar = document.getElementById('progress-bar');
+
+        // Reduz a largura da barra
+        setTimeout(() => { if(progressBar) progressBar.style.width = '0%'; }, 50);
+
+        const countdownInterval = setInterval(() => {
+            seconds--;
+            if(textElement) textElement.innerText = seconds;
+
+            if (seconds <= 0) {
+                clearInterval(countdownInterval);
+                
+                // SÓ O HOST ENVIA O PEDIDO DE TRANSIÇÃO
+                {{#if isHost}}
+                    console.log("🚀 Transição automática disparada pelo Host...");
+                    fetch('/gif/start-phase', { method: 'POST' })
+                    .catch(err => console.error("Erro na transição:", err));
+                {{/if}}
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

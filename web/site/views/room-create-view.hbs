@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>GIFWARS - Configurar Sala</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="p-4 md:p-8">
+    {{> header}}
+    <main class="max-w-md mx-auto mt-10">
+        <form action="/room/create" method="POST" class="glass p-8 rounded-3xl space-y-6">
+            <h2 class="text-2xl font-bold text-center italic uppercase">Configurar Partida</h2>
+            
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-purple-400">Número de Rondas</label>
+                <select name="rounds" class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <option value="3">3 Rondas</option>
+                    <option value="5">5 Rondas</option>
+                    <option value="10">10 Rondas (Hardcore)</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-purple-400">Tempo de Sugestões</label>
+                <select name="suggestionTime" class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <option value="1">1 Minuto</option>
+                    <option value="2">2 Minutos</option>
+                    <option value="3">3 Minutos</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 p-4 rounded-xl font-bold text-lg shadow-lg">
+                GERAR CÓDIGO DA SALA
+            </button>
+        </form>
+    </main>
+    {{> footer}}
+</body>
+</html>
