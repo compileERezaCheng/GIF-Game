@@ -23,7 +23,9 @@ app.engine('hbs', engine({
     partialsDir: path.join(__dirname, 'web/site/views/partials'),
     helpers: {
         slice: (str, start, end) => str ? str.slice(start, end) : "",
-        eq: (v1, v2) => String(v1) === String(v2)
+        eq: (v1, v2) => String(v1) === String(v2),
+        add: (v1, v2) => parseInt(v1) + parseInt(v2),
+        string: (v) => String(v)
     }
 }));
 app.set('view engine', 'hbs');

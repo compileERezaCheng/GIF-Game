@@ -2,7 +2,6 @@
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GIFWARS - Pódio Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
@@ -25,8 +24,9 @@
             {{#if podium.[1]}}
             <div class="flex-1 flex flex-col items-center">
                 <div class="w-16 h-16 rounded-full bg-gray-400 flex items-center justify-center font-black text-xl text-black mb-4 shadow-xl">2</div>
-                <div class="glass w-full p-6 rounded-t-3xl border-t border-white/10 bg-gray-400/10 h-[150px] flex flex-col justify-center">
-                    <span class="font-black italic uppercase text-white truncate">{{podium.[1].name}}</span>
+                <div class="glass w-full p-6 rounded-t-3xl border-t border-white/10 bg-gray-400/10 h-[150px] flex flex-col items-center justify-center">
+                    <img src="/images/pfp-{{podium.[1].pfp}}.png" class="w-12 h-12 mb-2 object-contain">
+                    <span class="font-black italic uppercase text-white truncate w-full px-2">{{podium.[1].name}}</span>
                     <span class="text-gray-400 font-black text-sm">{{podium.[1].score}} PTS</span>
                 </div>
             </div>
@@ -34,10 +34,11 @@
 
             {{#if podium.[0]}}
             <div class="flex-1 flex flex-col items-center scale-110 relative z-10">
-                <div class="absolute -top-10 animate-bounce"><i data-lucide="crown" class="w-10 h-10 text-yellow-500 shadow-yellow-500"></i></div>
+                <div class="absolute -top-10 animate-bounce"><i data-lucide="crown" class="w-10 h-10 text-yellow-500"></i></div>
                 <div class="w-20 h-20 rounded-full bg-yellow-500 flex items-center justify-center font-black text-3xl text-black mb-4 shadow-2xl">1</div>
-                <div class="glass w-full p-8 rounded-t-[40px] border-t-2 border-yellow-500/50 bg-yellow-500/10 h-[220px] flex flex-col justify-center">
-                    <span class="text-2xl font-black italic uppercase text-white truncate">{{podium.[0].name}}</span>
+                <div class="glass w-full p-8 rounded-t-[40px] border-t-2 border-yellow-500/50 bg-yellow-500/10 h-[220px] flex flex-col items-center justify-center">
+                    <img src="/images/pfp-{{podium.[0].pfp}}.png" class="w-16 h-16 mb-4 object-contain">
+                    <span class="text-2xl font-black italic uppercase text-white truncate w-full px-2">{{podium.[0].name}}</span>
                     <span class="text-yellow-500 font-black text-xl">{{podium.[0].score}} PTS</span>
                 </div>
             </div>
@@ -46,15 +47,16 @@
             {{#if podium.[2]}}
             <div class="flex-1 flex flex-col items-center">
                 <div class="w-16 h-16 rounded-full bg-orange-700 flex items-center justify-center font-black text-xl text-black mb-4 shadow-xl">3</div>
-                <div class="glass w-full p-6 rounded-t-3xl border-t border-white/10 bg-orange-700/10 h-[100px] flex flex-col justify-center">
-                    <span class="font-black italic uppercase text-white truncate">{{podium.[2].name}}</span>
+                <div class="glass w-full p-6 rounded-t-3xl border-t border-white/10 bg-orange-700/10 h-[100px] flex flex-col items-center justify-center">
+                    <img src="/images/pfp-{{podium.[2].pfp}}.png" class="w-10 h-10 mb-1 object-contain">
+                    <span class="font-black italic uppercase text-white truncate w-full px-2">{{podium.[2].name}}</span>
                     <span class="text-orange-700 font-black text-sm">{{podium.[2].score}} PTS</span>
                 </div>
             </div>
             {{/if}}
         </div>
 
-        <!-- Botões de Ação (Movidos para cima da tabela) -->
+        <!-- Botão Novo Campeonato em cima da tabela -->
         <div class="py-8">
             {{#if isHost}}
                 <form action="/game/restart" method="POST">
@@ -66,54 +68,24 @@
                     </button>
                 </form>
             {{else}}
-                <div class="flex flex-col items-center gap-4">
-                    <div class="flex gap-2">
-                        <div class="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                        <div class="w-2 h-2 bg-purple-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                        <div class="w-2 h-2 bg-purple-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                    </div>
-                    <p class="text-gray-500 font-black uppercase tracking-widest text-[10px] italic">Aguardando que o Host reinicie a Arena...</p>
-                </div>
+                <p class="text-gray-500 font-black uppercase tracking-widest text-[10px] italic animate-pulse">A aguardar que o Host reinicie a Arena...</p>
             {{/if}}
         </div>
 
         <!-- Tabela de Classificação Completa -->
         <div class="glass p-8 md:p-12 rounded-[48px] border border-white/5 bg-white/5 text-left relative overflow-hidden">
-            <div class="absolute top-0 right-0 p-8 opacity-5">
-                <i data-lucide="trophy" class="w-32 h-32"></i>
-            </div>
-            
             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.5em] mb-10 italic">Classificação Geral</h3>
-            
-            <div class="space-y-3 relative z-10">
+            <div class="space-y-3">
                 {{#each podium}}
-                <div class="flex items-center justify-between p-5 rounded-3xl transition-all {{#if (eq this.id ../player.id)}}bg-purple-600/20 border border-purple-500/30 shadow-[0_0_20px_rgba(147,51,234,0.1)]{{else}}bg-black/20 border border-white/5{{/if}}">
+                <div class="flex items-center justify-between p-5 rounded-3xl transition-all {{#if (eq (string this.id) (string ../player.id))}}bg-purple-600/20 border border-purple-500/30 shadow-lg{{else}}bg-black/20 border border-white/5{{/if}}">
                     <div class="flex items-center gap-6">
-                        <!-- Rank Number -->
-                        <span class="w-8 text-center font-black text-xl italic {{#if (eq @index 0)}}text-yellow-500{{else if (eq @index 1)}}text-gray-400{{else if (eq @index 2)}}text-orange-700{{else}}text-gray-600{{/if}}">
-                            #{{#if (eq @index 0)}}1{{else if (eq @index 1)}}2{{else if (eq @index 2)}}3{{else}}{{add @index 1}}{{/if}}
-                        </span>
-                        
-                        <!-- Avatar Mini -->
-                        <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm {{#if (eq this.id ../player.id)}}bg-purple-600{{else}}bg-white/10{{/if}}">
-                            {{slice this.name 0 1}}
+                        <span class="w-8 text-center font-black text-xl italic {{#if (eq @index 0)}}text-yellow-500{{else if (eq @index 1)}}text-gray-400{{else if (eq @index 2)}}text-orange-700{{else}}text-gray-600{{/if}}">#{{add @index 1}}</span>
+                        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center p-1">
+                            <img src="/images/pfp-{{this.pfp}}.png" class="w-full h-full object-contain">
                         </div>
-                        
-                        <!-- Name -->
-                        <div class="flex flex-col">
-                            <span class="font-black italic uppercase tracking-tight text-white">
-                                {{this.name}}
-                                {{#if (eq this.id ../player.id)}}
-                                <span class="ml-2 text-[8px] bg-purple-500 text-white px-2 py-0.5 rounded-full not-italic tracking-normal">TU</span>
-                                {{/if}}
-                            </span>
-                        </div>
+                        <span class="font-black italic uppercase text-white">{{this.name}} {{#if (eq (string this.id) (string ../player.id))}}<span class="ml-2 text-[8px] bg-purple-500 text-white px-2 py-0.5 rounded-full not-italic">TU</span>{{/if}}</span>
                     </div>
-                    
-                    <!-- Score -->
-                    <div class="text-right">
-                        <span class="text-2xl font-black italic text-white">{{this.score}} <span class="text-[8px] text-gray-500 uppercase not-italic">pts</span></span>
-                    </div>
+                    <span class="text-2xl font-black italic text-white">{{this.score}} <span class="text-[8px] text-gray-500 uppercase not-italic">pts</span></span>
                 </div>
                 {{/each}}
             </div>
@@ -122,13 +94,5 @@
     </main>
 
     {{> footer}}
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        });
-    </script>
 </body>
 </html>

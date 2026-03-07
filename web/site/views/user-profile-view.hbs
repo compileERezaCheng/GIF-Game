@@ -15,18 +15,28 @@
             <div class="absolute inset-0 bg-purple-600/5 pointer-events-none"></div>
             
             <div class="relative z-10 text-center">
-                <div class="mb-10 flex justify-center">
-                    <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-2xl rotate-3">
-                        <i data-lucide="user" class="w-12 h-12 text-white"></i>
-                    </div>
+                <div class="mb-10 flex flex-col items-center">
+                    <!-- FOTO CLICÁVEL: Passa o parâmetro from=profile -->
+                    <a href="/choose-icon?from=profile" class="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-purple-600 to-pink-500 p-1 shadow-2xl mb-6 relative group border border-white/10 block transition-transform hover:scale-105 active:scale-95">
+                        <div class="w-full h-full bg-gray-900 rounded-[38px] flex items-center justify-center overflow-hidden">
+                            <img src="/images/pfp-{{player.pfp}}.png" class="w-full h-full object-contain" onerror="this.src='https://placehold.co/100?text=Avatar'">
+                        </div>
+                        <div class="absolute inset-0 bg-black/60 rounded-[40px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                            <i data-lucide="camera" class="w-6 h-6 text-white"></i>
+                            <span class="text-[8px] font-black text-white uppercase italic tracking-widest">Alterar Avatar</span>
+                        </div>
+                    </a>
+
+                    <h2 class="text-4xl font-black italic mb-2 uppercase tracking-tighter">O Teu Perfil</h2>
+                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-[0.3em] italic">Arena de Batalha 2026</p>
                 </div>
 
-                <h2 class="text-4xl font-black italic mb-2 uppercase tracking-tighter">O Teu Perfil</h2>
-                <p class="text-gray-500 text-sm mb-12 italic uppercase tracking-widest">Altera a tua identidade na Arena</p>
-
-                <form action="/profile/update" method="POST" class="space-y-8">
+                <form action="/profile/update" method="POST" class="space-y-10">
+                    <!-- REDIRECIONAMENTO SEMPRE PARA "/" PARA VOLTAR ONDE ESTAVA -->
+                    <input type="hidden" name="redirect" value="/">
+                    
                     <div class="space-y-2 text-left">
-                        <label class="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em] ml-4">Novo Nome de Guerra</label>
+                        <label class="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em] ml-6 italic">Nome de Guerra</label>
                         <input 
                             type="text" 
                             name="name" 
@@ -37,12 +47,13 @@
                         >
                     </div>
 
-                    <div class="flex flex-col gap-4">
-                        <button type="submit" class="w-full bg-white text-black p-6 rounded-3xl font-black text-xl hover:bg-purple-600 hover:text-white transition-all shadow-xl active:scale-95">
+                    <div class="flex flex-col gap-6">
+                        <button type="submit" class="w-full bg-white text-black p-6 rounded-3xl font-black text-xl hover:bg-purple-600 hover:text-white transition-all shadow-xl active:scale-95 uppercase italic">
                             GUARDAR ALTERAÇÕES
                         </button>
-                        <a href="/" class="text-gray-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors">
-                            Cancelar e Voltar
+                        
+                        <a href="/" class="text-gray-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors italic">
+                            CANCELAR
                         </a>
                     </div>
                 </form>

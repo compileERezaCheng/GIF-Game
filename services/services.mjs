@@ -1,5 +1,11 @@
 export default function init(gameData) {
-    const defaultThemes = ["Segunda-feira às 8h", "Gatos vs Pepinos", "Expectativa vs Realidade", "Café matinal", "Programar com bugs"];
+    const defaultThemes = [
+        "Segunda-feira às 8h", 
+        "Gatos vs Tecnologia", 
+        "Expectativa vs Realidade", 
+        "Café matinal no escritório", 
+        "Programadores a encontrar um bug"
+    ];
 
     return {
         login: (userId, name) => gameData.addPlayer(userId, name),
@@ -7,6 +13,7 @@ export default function init(gameData) {
         startThemeVote: async (roomCode) => {
             const room = gameData.getRoom(roomCode);
             let pool = gameData.getThemeSuggestions(roomCode);
+            // Se houver poucos temas, adiciona os default
             if (pool.length < 2) {
                 const shuffled = [...defaultThemes].sort(() => 0.5 - Math.random());
                 pool = [...pool, ...shuffled.slice(0, 2)];
@@ -28,24 +35,29 @@ export default function init(gameData) {
             room.themeVotes.forEach(t => { if(counts[t] !== undefined) counts[t]++; });
             
             const [tA, tB] = room.themeBallot;
-            let vencedor = counts[tA] >= counts[tB] ? tA : tB;
+            let vencedor = counts[tA] >= (counts[tB] || 0) ? tA : tB;
             if (counts[tA] === counts[tB]) vencedor = Math.random() > 0.5 ? tA : tB;
             
-            // GARANTIA: O tema é guardado no objeto da sala
             room.currentTheme = vencedor;
             gameData.updateRoomStatus(roomCode, 'THEME_WINNER');
         },
 
-        // ... Restantes funções de submissão e votação ...
         submitGif: async (userId, roomCode, url) => {
             const room = gameData.getRoom(roomCode);
             if (!room) return;
-            room.gifs.set(userId, { id: userId, url, playerId: userId, dono: gameData.getPlayer(userId)?.name || "Anónimo" });
+            room.gifs.set(userId, { 
+                id: userId, 
+                url, 
+                playerId: userId, 
+                dono: gameData.getPlayer(userId)?.name || "Guerreiro" 
+            });
         },
 
         castGifVote: async (userId, roomCode, gifId) => {
             const room = gameData.getRoom(roomCode);
+            // Bloqueio de auto-voto: gifId aqui é o ID do dono do GIF (que é o userId)
             if (!room || userId === gifId) return; 
+            
             room.votes.set(userId, gifId);
             const gifVotado = room.gifs.get(gifId);
             if (gifVotado) gameData.updatePlayerScore(gifVotado.playerId, 10);
@@ -68,8 +80,10 @@ export default function init(gameData) {
             if (!room) return { winners: [] };
             const voteCounts = {};
             room.votes.forEach(gifId => { voteCounts[gifId] = (voteCounts[gifId] || 0) + 1; });
+            
             let max = 0;
             for (const c of Object.values(voteCounts)) if (c > max) max = c;
+            
             const winners = [];
             if (max > 0) {
                 for (const [id, count] of Object.entries(voteCounts)) {

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 export default function init(gameServices, gameData, io) {
+    const pfpList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     
     return { setupRoutes, sessionMiddleware };
 
@@ -20,26 +21,27 @@ export default function init(gameServices, gameData, io) {
 
     function setupRoutes(app) {
         
+        // --- NAVEGAÇÃO PRINCIPAL (AUTOMÁTICA) ---
         app.get('/', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
 
             if (!player) return res.render('login-view');
+            if (!player.pfp) return res.redirect('/choose-icon');
             if (!player.roomId) return res.render('lobby-choice-view', { player });
 
             const room = gameData.getRoom(player.roomId);
             if (!room) { player.roomId = null; return res.redirect('/'); }
 
             const isHost = String(room.hostId) === String(userId);
-            const playersInRoom = gameData.getAllPlayersInRoom(room.code);
-            
-            // CALCULO DO TEMPO REAL RESTANTE
-            let timeLeft = 0;
-            if (room.timerExpiresAt) {
-                timeLeft = Math.max(0, Math.floor((room.timerExpiresAt - Date.now()) / 1000));
-            }
+            const timeLeft = room.timerExpiresAt ? Math.max(0, Math.floor((room.timerExpiresAt - Date.now()) / 1000)) : 0;
 
-            const viewData = { player, room, isHost, players: playersInRoom, timeLeft, theme: room.currentTheme };
+            const viewData = { 
+                player, room, isHost, 
+                players: gameData.getAllPlayersInRoom(room.code), 
+                timeLeft, 
+                theme: room.currentTheme 
+            };
 
             switch(room.status) {
                 case 'LOBBY': return res.render('room-view', viewData);
@@ -55,39 +57,47 @@ export default function init(gameServices, gameData, io) {
                     if (room.votes.has(userId)) return res.render('gif-waiting-vote-view', viewData);
                     return res.render('gif-vote-view', { ...viewData, gifs: Array.from(room.gifs.values()) });
                 case 'RESULTS':
-                    const roundRes = await gameServices.obterResultadosGlobais(room.code);
-                    return res.render('results-view', { ...viewData, results: roundRes });
+                    const results = await gameServices.obterResultadosGlobais(room.code);
+                    return res.render('results-view', { ...viewData, results });
                 case 'FINAL_RANKING':
-                    const podium = [...playersInRoom].sort((a, b) => b.score - a.score);
+                    const podium = gameData.getAllPlayersInRoom(room.code).sort((a, b) => b.score - a.score);
                     return res.render('final-podium-view', { ...viewData, podium });
                 default: return res.render('login-view');
             }
         });
 
-        // --- GESTÃO DE PERFIL ---
+        // --- GESTÃO DE PERFIL E AVATARES ---
         app.get('/profile', (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
             if (!player) return res.redirect('/');
             res.render('user-profile-view', { player });
         });
 
-        app.post('/profile/update', (req, res) => {
+        app.get('/choose-icon', (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
-            if (player && req.body.name) {
-                player.name = req.body.name;
-                if (player.roomId) broadcastSync(player.roomId, 'player_update');
-            }
-            res.redirect('/');
+            if (!player) return res.redirect('/');
+            res.render('icon-choice-view', { player, pfpList, fromProfile: req.query.from === 'profile' });
         });
 
-        // --- SALAS (GET) ---
-        // Estas rotas estavam em falta e causavam o erro Cannot GET
+        app.post('/profile/update', (req, res) => {
+            const player = gameData.getPlayer(req.cookies.userId);
+            if (player) {
+                if (req.body.name) player.name = req.body.name;
+                if (req.body.pfp) player.pfp = req.body.pfp;
+                if (player.roomId) broadcastSync(player.roomId, 'player_update');
+            }
+            res.redirect(req.body.redirect || '/');
+        });
+
+        // --- SALAS ---
+        app.post('/login', (req, res) => {
+            gameData.addPlayer(req.cookies.userId, req.body.name);
+            res.redirect('/choose-icon');
+        });
+
         app.get('/room/create', (req, res) => res.render('room-create-view'));
         app.get('/room/join', (req, res) => res.render('room-join-view', { error: req.query.error }));
 
-        // --- SALAS (POST) ---
-        app.post('/login', (req, res) => { gameData.addPlayer(req.cookies.userId, req.body.name); res.redirect('/'); });
-        
         app.post('/room/create', (req, res) => {
             const room = gameData.createRoom(req.cookies.userId);
             gameData.updateRoomConfigs(room.code, req.body);
@@ -98,19 +108,12 @@ export default function init(gameServices, gameData, io) {
             const code = req.body.code.toUpperCase();
             const room = gameData.getRoom(code);
             if (!room) return res.redirect('/room/join?error=Código inválido');
-            
-            // Validação de nome duplicado na sala
-            const currentPlayer = gameData.getPlayer(req.cookies.userId);
-            const playersInRoom = gameData.getAllPlayersInRoom(code);
-            if (playersInRoom.some(p => p.name.toLowerCase() === currentPlayer.name.toLowerCase() && p.id !== currentPlayer.id)) {
-                return res.redirect('/room/join?error=Nome já em uso nesta sala');
-            }
-
             gameData.joinRoom(req.cookies.userId, code);
             broadcastSync(code, 'player_update');
             res.redirect('/');
         });
 
+        // --- FASES DE JOGO (TEMAS) ---
         app.post('/game/start', async (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
             if (player?.roomId) {
@@ -121,7 +124,6 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- LOGICA DE JOGO ---
         app.post('/theme/submit', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -130,6 +132,20 @@ export default function init(gameServices, gameData, io) {
                 const room = gameData.getRoom(player.roomId);
                 if (room.submittedPlayers.size >= room.playersIds.size) {
                     await gameServices.startThemeVote(room.code);
+                    broadcastSync(room.code, 'state_update');
+                }
+                res.redirect('/');
+            }
+        });
+
+        app.post('/theme/vote', async (req, res) => {
+            const userId = req.cookies.userId;
+            const player = gameData.getPlayer(userId);
+            if (player?.roomId) {
+                const room = gameData.getRoom(player.roomId);
+                await gameServices.castThemeVote(userId, player.roomId, req.body.tema);
+                if (room.themeVotes.size >= room.playersIds.size) {
+                    await gameServices.finishThemeVote(room.code);
                     broadcastSync(room.code, 'state_update');
                 }
                 res.redirect('/');
@@ -149,31 +165,19 @@ export default function init(gameServices, gameData, io) {
             res.json({ success: true });
         });
 
-        app.post('/theme/vote', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                await gameServices.castThemeVote(userId, player.roomId, req.body.tema);
-                const room = gameData.getRoom(player.roomId);
-                if (room.themeVotes.size >= room.playersIds.size) {
-                    await gameServices.finishThemeVote(room.code);
-                    broadcastSync(room.code, 'state_update');
-                }
-                res.redirect('/');
-            }
-        });
-
+        // --- FASES DE JOGO (GIFS) ---
         app.post('/gif/start-phase', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
+                if (room && String(room.hostId) === String(userId)) {
                     gameData.updateRoomStatus(room.code, 'GIF_SUBMISSION');
                     broadcastSync(room.code, 'state_update');
+                    return res.json({ success: true });
                 }
             }
-            res.json({ success: true });
+            res.status(403).json({ success: false });
         });
 
         app.post('/gif/submit', async (req, res) => {
@@ -184,6 +188,20 @@ export default function init(gameServices, gameData, io) {
                 const room = gameData.getRoom(player.roomId);
                 if (room.gifs.size >= room.playersIds.size) {
                     gameData.updateRoomStatus(room.code, 'GIF_VOTING');
+                    broadcastSync(room.code, 'state_update');
+                }
+                res.redirect('/');
+            }
+        });
+
+        app.post('/gif/vote', async (req, res) => {
+            const userId = req.cookies.userId;
+            const player = gameData.getPlayer(userId);
+            if (player?.roomId) {
+                await gameServices.castGifVote(userId, player.roomId, req.body.gifId);
+                const room = gameData.getRoom(player.roomId);
+                if (room.votes.size >= room.playersIds.size) {
+                    gameData.updateRoomStatus(room.code, 'RESULTS');
                     broadcastSync(room.code, 'state_update');
                 }
                 res.redirect('/');
@@ -203,20 +221,7 @@ export default function init(gameServices, gameData, io) {
             res.json({ success: true });
         });
 
-        app.post('/gif/vote', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                await gameServices.castGifVote(userId, player.roomId, req.body.gifId);
-                const room = gameData.getRoom(player.roomId);
-                if (room.votes.size >= room.playersIds.size) {
-                    gameData.updateRoomStatus(room.code, 'RESULTS');
-                    broadcastSync(room.code, 'state_update');
-                }
-                res.redirect('/');
-            }
-        });
-
+        // --- RONDA E RESTART ---
         app.post('/game/next-round', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);

@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 
 export default function init() {
-    const players = new Map();
-    const rooms = new Map();
+    const players = new Map();    // userId -> { id, name, score, roomId, pfp }
+    const rooms = new Map();      // roomCode -> { status, configs, ... }
 
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
@@ -10,12 +10,14 @@ export default function init() {
         addThemeSuggestion, getThemeSuggestions, resetRoomRound, fullReset, softResetRoom
     };
 
-    function addPlayer(userId, name) {
+    function addPlayer(userId, name, pfp = null) {
         if (players.has(userId)) {
-            players.get(userId).name = name;
-            return players.get(userId);
+            const p = players.get(userId);
+            p.name = name;
+            if (pfp) p.pfp = pfp;
+            return p;
         }
-        const newPlayer = { id: userId, name, score: 0, roomId: null };
+        const newPlayer = { id: userId, name, score: 0, roomId: null, pfp };
         players.set(userId, newPlayer);
         return newPlayer;
     }
@@ -79,26 +81,19 @@ export default function init() {
     function updateRoomStatus(code, status) {
         const room = rooms.get(code);
         if (!room) return;
-
         room.status = status;
         const now = Date.now();
-
-        // DEFINIÇÃO DE TIMESTAMPS REAIS (MS)
-        switch(status) {
-            case 'THEME_SUBMISSION':
-                room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
-                break;
-            case 'THEME_WINNER':
-                room.timerExpiresAt = now + 5000; // 5 segundos fixos
-                break;
-            case 'GIF_SUBMISSION':
-                room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
-                break;
-            case 'RESULTS':
-                room.timerExpiresAt = now + 15000; // 15 segundos fixos
-                break;
-            default:
-                room.timerExpiresAt = null;
+        // Lógica de Timestamps Absolutos para Sincronização
+        if (status === 'THEME_SUBMISSION') {
+            room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
+        } else if (status === 'GIF_SUBMISSION') {
+            room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
+        } else if (status === 'THEME_WINNER') {
+            room.timerExpiresAt = now + 5000;
+        } else if (status === 'RESULTS') {
+            room.timerExpiresAt = now + 15000;
+        } else {
+            room.timerExpiresAt = null;
         }
     }
 

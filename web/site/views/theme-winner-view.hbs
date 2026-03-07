@@ -22,8 +22,7 @@
                 </div>
                 
                 <h3 class="text-purple-400 font-black uppercase tracking-[0.4em] mb-4 text-xs italic">O Tema Escolhido é...</h3>
-                <!-- Garante que o tema aparece, mesmo que seja uma string vazia -->
-                <h2 class="text-5xl md:text-6xl font-black italic text-white mb-12 uppercase leading-tight drop-shadow-2xl break-words">
+                <h2 class="text-5xl md:text-6xl font-black italic text-white mb-12 uppercase leading-tight drop-shadow-2xl">
                     "{{theme}}"
                 </h2>
                 
@@ -43,47 +42,23 @@
 
     <script>
         let seconds = 5;
-        const textElement = document.getElementById('countdown-text');
-        const progressBar = document.getElementById('progress-bar');
-        let transitionTriggered = false;
+        const textEl = document.getElementById('countdown-text');
+        const barEl = document.getElementById('progress-bar');
+        let triggered = false;
 
-        // Inicia a animação da barra
-        setTimeout(() => { if(progressBar) progressBar.style.width = '0%'; }, 50);
+        setTimeout(() => { if(barEl) barEl.style.width = '0%'; }, 50);
 
-        const countdownInterval = setInterval(() => {
+        const timer = setInterval(() => {
             seconds--;
-            if(textElement) textElement.innerText = seconds;
+            if(textEl) textEl.innerText = seconds;
 
             if (seconds <= 0) {
-                clearInterval(countdownInterval);
-                if (textElement) textElement.innerText = "0";
-                
-                // Lógica de transição robusta para o Host
+                clearInterval(timer);
                 {{#if isHost}}
-                    if (!transitionTriggered) {
-                        transitionTriggered = true;
-                        console.log("🚀 Host: A tentar avançar para a fase de GIFs...");
-                        
-                        // Usa a rota correta definida no router
-                        fetch('/gif/start-phase', { method: 'POST' })
-                            .then(response => {
-                                if (response.ok) {
-                                    console.log("✅ Transição bem-sucedida. Aguardando socket...");
-                                } else {
-                                    console.error("❌ Erro no servidor ao tentar transitar.");
-                                    // Tenta novamente após 1s em caso de falha de rede momentânea
-                                    setTimeout(() => {
-                                         fetch('/gif/start-phase', { method: 'POST' });
-                                    }, 1000);
-                                }
-                            })
-                            .catch(err => {
-                                console.error("❌ Erro de rede na transição:", err);
-                                transitionTriggered = false; // Permite tentar novamente no próximo tick se falhar muito cedo
-                            });
+                    if(!triggered) {
+                        triggered = true;
+                        fetch('/gif/start-phase', { method: 'POST' });
                     }
-                {{else}}
-                     console.log("⏳ Jogador: A aguardar sinal do Host via socket...");
                 {{/if}}
             }
         }, 1000);
