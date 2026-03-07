@@ -137,7 +137,7 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- INÍCIO DA PARTIDA ---
+        // --- CONTROLO DE PARTIDA ---
         app.post('/game/start', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -152,19 +152,29 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- AVANÇO AUTOMÁTICO ---
+        app.post('/game/next-round', async (req, res) => {
+            const userId = req.cookies.userId;
+            const player = gameData.getPlayer(userId);
+            if (player?.roomId) {
+                const room = gameData.getRoom(player.roomId);
+                if (String(room.hostId) === String(userId)) {
+                    await gameServices.advanceRound(room.code);
+                    broadcastSync(room.code, 'state_update');
+                    return res.json({ success: true });
+                }
+            }
+            res.status(403).json({ success: false });
+        });
+
         app.post('/game/auto-advance', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
                 if (String(room.hostId) === String(userId)) {
-                    // Trata a transição do Vencedor do Tema para a Submissão de GIFs
                     if (room.status === 'THEME_WINNER') {
                         gameData.updateRoomStatus(room.code, 'GIF_SUBMISSION');
-                    } 
-                    // Trata a transição dos Resultados da Ronda para a próxima Ronda ou Final
-                    else if (room.status === 'RESULTS') {
+                    } else if (room.status === 'RESULTS') {
                         await gameServices.advanceRound(room.code);
                     }
                     broadcastSync(room.code, 'state_update');
@@ -173,6 +183,21 @@ export default function init(gameServices, gameData, io) {
             res.json({ success: true });
         });
 
+        // RESTART: Adicionado para permitir recomeçar o jogo do zero
+        app.post('/game/restart', async (req, res) => {
+            const userId = req.cookies.userId;
+            const player = gameData.getPlayer(userId);
+            if (player?.roomId) {
+                const room = gameData.getRoom(player.roomId);
+                if (String(room.hostId) === String(userId)) {
+                    gameData.softResetRoom(room.code);
+                    broadcastSync(room.code, 'state_update');
+                }
+            }
+            res.redirect('/');
+        });
+
+        // --- FINALIZAÇÃO AUTOMÁTICA DE FASES ---
         app.post('/theme/auto-finish', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -199,7 +224,7 @@ export default function init(gameServices, gameData, io) {
             res.json({ success: true });
         });
 
-        // --- RESTO DAS ACÇÕES DE JOGO (VOTES, SUBMITS) ---
+        // --- SUBMISSÕES E VOTOS ---
         app.post('/theme/submit', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
