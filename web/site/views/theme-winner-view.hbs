@@ -18,7 +18,8 @@
             
             <div class="relative z-10">
                 <div class="inline-flex p-4 bg-yellow-500/10 rounded-2xl mb-8">
-                    <i data-lucide="trophy" class="text-yellow-500 w-12 h-12"></i>
+                    <!-- Ícone de Troféu -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
                 </div>
                 
                 <h3 class="text-purple-400 font-black uppercase tracking-[0.4em] mb-4 text-xs italic">O Tema Escolhido é...</h3>
@@ -40,28 +41,51 @@
 
     {{> footer}}
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        let seconds = 5;
-        const textEl = document.getElementById('countdown-text');
-        const barEl = document.getElementById('progress-bar');
-        let triggered = false;
+        (function() {
+            const socket = io();
+            socket.emit('join_room_socket', '{{room.code}}');
 
-        setTimeout(() => { if(barEl) barEl.style.width = '0%'; }, 50);
+            socket.on('room_sync', (data) => {
+                if (data.type === 'state_update') {
+                    window.location.reload();
+                }
+            });
 
-        const timer = setInterval(() => {
-            seconds--;
-            if(textEl) textEl.innerText = seconds;
+            let seconds = parseInt("{{timeLeft}}") || 5;
+            const textEl = document.getElementById('countdown-text');
+            const barEl = document.getElementById('progress-bar');
+            let triggered = false;
 
-            if (seconds <= 0) {
-                clearInterval(timer);
-                {{#if isHost}}
-                    if(!triggered) {
-                        triggered = true;
-                        fetch('/gif/start-phase', { method: 'POST' });
-                    }
-                {{/if}}
-            }
-        }, 1000);
+            // Inicia a animação da barra
+            setTimeout(() => { 
+                if(barEl) {
+                    barEl.style.transitionDuration = (seconds * 1000) + 'ms';
+                    barEl.style.width = '0%'; 
+                }
+            }, 50);
+
+            const timer = setInterval(() => {
+                seconds--;
+                if(textEl) textEl.innerText = Math.max(0, seconds);
+
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    {{#if isHost}}
+                        if(!triggered) {
+                            triggered = true;
+                            // CORREÇÃO: Chamar a rota genérica de avanço que já trata THEME_WINNER
+                            fetch('/game/auto-advance', { method: 'POST' })
+                                .then(res => res.json())
+                                .then(data => {
+                                    if(!data.success) triggered = false;
+                                });
+                        }
+                    {{/if}}
+                }
+            }, 1000);
+        })();
     </script>
 </body>
 </html>

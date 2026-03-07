@@ -18,9 +18,16 @@
             <div class="absolute inset-0 bg-purple-600/5 animate-pulse"></div>
             
             <div class="relative z-10">
+                <!-- TIMER ADICIONADO AQUI DENTRO -->
+                <div class="mb-6 flex justify-center">
+                    <div class="px-4 py-1 bg-purple-500/20 rounded-full border border-purple-500/30">
+                        <span id="timer" class="text-xl font-black text-purple-400">--</span>
+                    </div>
+                </div>
+
                 <div class="mb-10 flex justify-center">
                     <div class="p-5 bg-purple-500/10 rounded-full shadow-inner">
-                        <i data-lucide="check-circle" class="w-16 h-16 text-purple-500"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     </div>
                 </div>
 
@@ -44,5 +51,40 @@
 
     {{> footer}}
 
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        (function() {
+            const timerElement = document.getElementById('timer');
+            let timeLeft = parseInt("{{timeLeft}}") || 0;
+
+            function updateDisplay() {
+                const mins = Math.floor(Math.max(0, timeLeft) / 60);
+                const secs = Math.floor(Math.max(0, timeLeft) % 60);
+                timerElement.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+
+            updateDisplay();
+
+            const interval = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    {{#if isHost}}
+                        fetch('/theme/vote-auto-finish', { method: 'POST' });
+                    {{/if}}
+                }
+            }, 1000);
+
+            try {
+                const socket = io();
+                socket.emit('join_room_socket', '{{room.code}}');
+                socket.on('room_sync', (data) => {
+                    if (data.type === 'state_update') window.location.reload();
+                });
+            } catch (e) {}
+        })();
+    </script>
 </body>
 </html>

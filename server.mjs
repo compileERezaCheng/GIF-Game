@@ -25,7 +25,9 @@ app.engine('hbs', engine({
         slice: (str, start, end) => str ? str.slice(start, end) : "",
         eq: (v1, v2) => String(v1) === String(v2),
         add: (v1, v2) => parseInt(v1) + parseInt(v2),
-        string: (v) => String(v)
+        string: (v) => String(v),
+        not: (v) => !v,
+        or: (v1, v2) => v1 || v2
     }
 }));
 app.set('view engine', 'hbs');
@@ -44,21 +46,32 @@ app.use(webSite.sessionMiddleware);
 webSite.setupRoutes(app);
 
 io.on('connection', (socket) => {
-    let currentRoom = null;
+    const cookieHeader = socket.request.headers.cookie;
     let userId = null;
+    
+    if (cookieHeader) {
+        const cookies = cookieHeader.split(';').map(c => c.trim().split('='));
+        const userCookie = cookies.find(c => c[0] === 'userId');
+        if (userCookie) userId = userCookie[1];
+    }
 
-    socket.on('join_room_socket', (code) => { 
-        if (code) {
-            socket.join(code); 
-            currentRoom = code;
+    if (userId) {
+        gameData.setPlayerOnline(userId, true);
+        const player = gameData.getPlayer(userId);
+        if (player?.roomId) {
+            socket.join(player.roomId);
+            webSite.broadcastSync(player.roomId, 'player_update');
         }
-    });
+    }
 
-    // TRATAR DISCONNECT (O Host sai sem carregar no botão)
     socket.on('disconnect', () => {
-        // Nota: Como usamos Cookies para o ID, aqui precisaríamos de mapear Socket -> User
-        // Mas o botão de Sair no perfil já cobre o fluxo principal.
-        // Se quiseres isto automático em refresh, precisamos de guardar o socketId no Player.
+        if (userId) {
+            gameData.setPlayerOnline(userId, false);
+            const player = gameData.getPlayer(userId);
+            if (player?.roomId) {
+                webSite.broadcastSync(player.roomId, 'player_update');
+            }
+        }
     });
 });
 

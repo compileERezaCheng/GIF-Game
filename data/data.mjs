@@ -1,27 +1,27 @@
 import crypto from 'crypto';
 
 export default function init() {
-    const players = new Map();    // userId -> { id, name, score, roomId, pfp }
-    const rooms = new Map();      // roomCode -> { hostId, playersIds, status, ... }
+    const players = new Map();
+    const rooms = new Map();
 
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
         createRoom, getRoom, joinRoom, leaveRoom, updateRoomStatus, updateRoomConfigs,
-        addThemeSuggestion, getThemeSuggestions, resetRoomRound, fullReset, softResetRoom
+        addThemeSuggestion, getThemeSuggestions, resetRoomRound, softResetRoom, setPlayerOnline
     };
 
     function addPlayer(userId, name, pfp = null) {
         if (players.has(userId)) {
             const p = players.get(userId);
             p.name = name;
-            if (pfp) p.pfp = pfp;
             return p;
         }
-        const newPlayer = { id: userId, name, score: 0, roomId: null, pfp };
+        const newPlayer = { id: userId, name, score: 0, roomId: null, pfp, online: true };
         players.set(userId, newPlayer);
         return newPlayer;
     }
 
+    function setPlayerOnline(id, status) { if(players.has(id)) players.get(id).online = status; }
     function getPlayer(id) { return players.get(id); }
     function getAllPlayers() { return Array.from(players.values()); }
 
@@ -32,11 +32,7 @@ export default function init() {
     }
 
     function createRoom(hostId) {
-        let code;
-        do {
-            code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        } while (rooms.has(code));
-
+        const code = crypto.randomBytes(3).toString('hex').toUpperCase();
         const room = {
             code, hostId, status: 'LOBBY', round: 1, currentTheme: null,
             themeBallot: [], themeVotes: new Map(), gifs: new Map(), votes: new Map(),
@@ -48,98 +44,80 @@ export default function init() {
         return room;
     }
 
-    // FUNÇÃO QUE ESTAVA EM FALTA
-    function getRoom(code) {
-        return rooms.get(code);
-    }
+    function getRoom(code) { return rooms.get(code); }
 
-    function joinRoom(userId, code) {
+    function joinRoom(id, code) {
         const room = rooms.get(code);
-        if (!room) return null;
-        room.playersIds.add(userId);
-        if (players.has(userId)) players.get(userId).roomId = code;
+        if (room) { 
+            room.playersIds.add(id); 
+            const p = players.get(id);
+            if(p) p.roomId = code;
+        }
         return room;
     }
 
-    function leaveRoom(userId) {
-        const player = players.get(userId);
-        if (!player || !player.roomId) return null;
-
-        const code = player.roomId;
+    function leaveRoom(id) {
+        const p = players.get(id);
+        if (!p?.roomId) return null;
+        const code = p.roomId;
         const room = rooms.get(code);
-        if (!room) return null;
-
-        room.playersIds.delete(userId);
-        player.roomId = null;
-
-        if (String(room.hostId) === String(userId)) {
-            const remainingPlayers = Array.from(room.playersIds);
-            if (remainingPlayers.length > 0) {
-                room.hostId = remainingPlayers[0];
-            } else {
-                rooms.delete(code);
+        if (room) {
+            room.playersIds.delete(id);
+            p.roomId = null;
+            if (String(room.hostId) === String(id)) {
+                const rem = Array.from(room.playersIds);
+                if (rem.length) room.hostId = rem[0]; else rooms.delete(code);
             }
         }
         return code;
     }
 
-    function updateRoomConfigs(code, configs) {
-        const room = rooms.get(code);
-        if (room) {
-            room.configs.rounds = parseInt(configs.rounds) || room.configs.rounds;
-            room.configs.suggestionTime = parseInt(configs.suggestionTime) || room.configs.suggestionTime;
-            room.configs.submissionTime = parseInt(configs.submissionTime) || room.configs.submissionTime;
+    function updateRoomConfigs(code, conf) {
+        const r = rooms.get(code);
+        if (r) {
+            r.configs.rounds = parseInt(conf.rounds) || r.configs.rounds;
+            r.configs.suggestionTime = parseInt(conf.suggestionTime) || r.configs.suggestionTime;
+            r.configs.submissionTime = parseInt(conf.submissionTime) || r.configs.submissionTime;
         }
     }
 
     function updateRoomStatus(code, status) {
-        const room = rooms.get(code);
-        if (!room) return;
-        room.status = status;
+        const r = rooms.get(code);
+        if (!r) return;
+        r.status = status;
         const now = Date.now();
-        if (status === 'THEME_SUBMISSION') room.timerExpiresAt = now + (room.configs.suggestionTime * 60 * 1000);
-        else if (status === 'GIF_SUBMISSION') room.timerExpiresAt = now + (room.configs.submissionTime * 60 * 1000);
-        else if (status === 'THEME_WINNER') room.timerExpiresAt = now + 5000;
-        else if (status === 'RESULTS') room.timerExpiresAt = now + 15000;
-        else room.timerExpiresAt = null;
+        if (status === 'THEME_SUBMISSION') r.timerExpiresAt = now + (r.configs.suggestionTime * 60000);
+        else if (status === 'THEME_VOTING') r.timerExpiresAt = now + 30000;
+        else if (status === 'THEME_WINNER') r.timerExpiresAt = now + 5000;
+        else if (status === 'GIF_SUBMISSION') r.timerExpiresAt = now + (r.configs.submissionTime * 60000);
+        else if (status === 'RESULTS') r.timerExpiresAt = now + 15000;
+        else r.timerExpiresAt = null;
     }
 
-    function addThemeSuggestion(code, userId, theme) {
-        const room = rooms.get(code);
-        if (room && theme) { room.themePool.add(theme.trim()); room.submittedPlayers.add(userId); }
+    function addThemeSuggestion(code, id, theme) {
+        const r = rooms.get(code);
+        if (r && theme) { r.themePool.add(theme.trim()); r.submittedPlayers.add(id); }
     }
 
-    function getThemeSuggestions(code) {
-        const room = rooms.get(code);
-        return room ? Array.from(room.themePool) : [];
-    }
+    function getThemeSuggestions(code) { return Array.from(rooms.get(code)?.themePool || []); }
 
-    function updatePlayerScore(userId, pts) {
-        const p = players.get(userId);
-        if (p) p.score += pts;
-    }
+    function updatePlayerScore(id, pts) { if(players.has(id)) players.get(id).score += pts; }
 
     function resetRoomRound(code) {
-        const room = rooms.get(code);
-        if (room) {
-            room.gifs.clear(); room.votes.clear(); room.themeVotes.clear();
-            room.submittedPlayers.clear(); room.themeBallot = [];
-            room.currentTheme = null; room.timerExpiresAt = null;
+        const r = rooms.get(code);
+        if (r) {
+            r.gifs.clear(); r.votes.clear(); r.themeVotes.clear();
+            r.submittedPlayers.clear(); r.themeBallot = [];
+            r.currentTheme = null; r.timerExpiresAt = null;
         }
     }
 
     function softResetRoom(code) {
-        const room = rooms.get(code);
-        if (room) {
+        const r = rooms.get(code);
+        if (r) {
             resetRoomRound(code);
-            room.round = 1; room.status = 'LOBBY';
-            room.playersIds.forEach(id => { if (players.has(id)) players.get(id).score = 0; });
+            r.round = 1; r.status = 'LOBBY';
+            r.playersIds.forEach(id => { if (players.has(id)) players.get(id).score = 0; });
         }
-    }
-
-    function fullReset() {
-        rooms.clear();
-        players.forEach(p => { p.score = 0; p.roomId = null; });
-        return { success: true };
     }
 }

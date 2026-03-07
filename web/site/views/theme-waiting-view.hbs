@@ -10,11 +10,8 @@
 
     {{> header}}
 
-    <span id="room-code-display" class="hidden">{{room.code}}</span>
-
     <main class="max-w-4xl mx-auto mt-10">
         <div class="glass p-10 rounded-[40px] text-center border-t border-white/10 relative overflow-hidden">
-            <!-- Background animado subtil -->
             <div class="absolute inset-0 bg-purple-600/5 animate-pulse"></div>
 
             <div class="relative z-10">
@@ -44,26 +41,41 @@
 
     {{> footer}}
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Cronómetro Sincronizado (usa o tempo que veio do servidor)
-        let timeLeft = parseInt("{{timeLeft}}");
-        const timerElement = document.getElementById('timer');
+        (function() {
+            const timerElement = document.getElementById('timer');
+            let timeLeft = parseInt("{{timeLeft}}");
+            if (isNaN(timeLeft)) timeLeft = 0;
 
-        const interval = setInterval(() => {
-            const mins = Math.floor(timeLeft / 60);
-            const secs = timeLeft % 60;
-            timerElement.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-
-            if (timeLeft <= 0) {
-                clearInterval(interval);
-                timerElement.innerText = "0:00";
-                {{#if isHost}}
-                    // O Host continua a ser o responsável por disparar a mudança de fase
-                    fetch('/theme/vote/start', { method: 'POST' });
-                {{/if}}
+            function updateDisplay() {
+                const mins = Math.floor(Math.max(0, timeLeft) / 60);
+                const secs = Math.floor(Math.max(0, timeLeft) % 60);
+                timerElement.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
             }
-            timeLeft--;
-        }, 1000);
+
+            updateDisplay();
+
+            const interval = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    {{#if isHost}}
+                        fetch('/theme/auto-finish', { method: 'POST' });
+                    {{/if}}
+                }
+            }, 1000);
+
+            try {
+                const socket = io();
+                socket.emit('join_room_socket', '{{room.code}}');
+                socket.on('room_sync', (data) => {
+                    if (data.type === 'state_update') window.location.reload();
+                });
+            } catch (e) {}
+        })();
     </script>
 </body>
 </html>
