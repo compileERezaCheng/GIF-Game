@@ -68,6 +68,11 @@ export default function init() {
                 const rem = Array.from(room.playersIds);
                 if (rem.length) room.hostId = rem[0]; else rooms.delete(code);
             }
+            
+            // Regra: Se a sala tiver menos de 2 jogadores durante o jogo, volta para o lobby
+            if (rooms.has(code) && room.playersIds.size < 2 && room.status !== 'LOBBY') {
+                softResetRoom(code);
+            }
         }
         return code;
     }

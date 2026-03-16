@@ -47,7 +47,8 @@ export default function init(gameData) {
 
         advanceRound: async (roomCode) => {
             const room = gameData.getRoom(roomCode);
-            if (!room) return;
+            // Previne o avanço da ronda se a sala não existir ou tiver retornado ao LOBBY
+            if (!room || room.status === 'LOBBY') return;
             if (room.round < room.configs.rounds) {
                 gameData.resetRoomRound(roomCode);
                 room.round += 1;

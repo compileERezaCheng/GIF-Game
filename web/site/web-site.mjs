@@ -144,6 +144,11 @@ export default function init(gameServices, gameData, io) {
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
                 if (String(room.hostId) === String(userId)) {
+                    // Impede o início de partida se não existirem pelo menos 2 jogadores
+                    if (room.playersIds.size < 2) {
+                        return res.redirect('/'); 
+                    }
+                    
                     gameData.updateRoomConfigs(player.roomId, req.body);
                     gameData.updateRoomStatus(player.roomId, 'THEME_SUBMISSION');
                     broadcastSync(player.roomId, 'state_update');
@@ -183,7 +188,6 @@ export default function init(gameServices, gameData, io) {
             res.json({ success: true });
         });
 
-        // RESTART: Adicionado para permitir recomeçar o jogo do zero
         app.post('/game/restart', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -231,7 +235,7 @@ export default function init(gameServices, gameData, io) {
             if (player?.roomId) {
                 gameData.addThemeSuggestion(player.roomId, userId, req.body.tema);
                 const room = gameData.getRoom(player.roomId);
-                if (room.submittedPlayers.size >= room.playersIds.size) {
+                if (room.status === 'THEME_SUBMISSION' && room.submittedPlayers.size >= room.playersIds.size) {
                     await gameServices.startThemeVote(room.code);
                     broadcastSync(room.code, 'state_update');
                 }
@@ -245,7 +249,7 @@ export default function init(gameServices, gameData, io) {
             if (player?.roomId) {
                 await gameServices.castThemeVote(userId, player.roomId, req.body.tema);
                 const room = gameData.getRoom(player.roomId);
-                if (room.themeVotes.size >= room.playersIds.size) {
+                if (room.status === 'THEME_VOTING' && room.themeVotes.size >= room.playersIds.size) {
                     await gameServices.finishThemeVote(room.code);
                     broadcastSync(room.code, 'state_update');
                 }
@@ -259,7 +263,7 @@ export default function init(gameServices, gameData, io) {
             if (player?.roomId) {
                 await gameServices.submitGif(userId, player.roomId, req.body.url);
                 const room = gameData.getRoom(player.roomId);
-                if (room.gifs.size >= room.playersIds.size) {
+                if (room.status === 'GIF_SUBMISSION' && room.gifs.size >= room.playersIds.size) {
                     gameData.updateRoomStatus(room.code, 'GIF_VOTING');
                     broadcastSync(room.code, 'state_update');
                 }
@@ -273,7 +277,7 @@ export default function init(gameServices, gameData, io) {
             if (player?.roomId) {
                 await gameServices.castGifVote(userId, player.roomId, req.body.gifId);
                 const room = gameData.getRoom(player.roomId);
-                if (room.votes.size >= room.playersIds.size) {
+                if (room.status === 'GIF_VOTING' && room.votes.size >= room.playersIds.size) {
                     gameData.updateRoomStatus(room.code, 'RESULTS');
                     broadcastSync(room.code, 'state_update');
                 }
