@@ -7,7 +7,7 @@ export default function init(gameServices, gameData, io) {
 
     function sessionMiddleware(req, res, next) {
         if (!req.cookies.userId) {
-            res.cookie('userId', uuidv4(), { maxAge: 900000, httpOnly: true });
+            res.cookie('userId', uuidv4(), { maxAge: 900000, httpOnly: true, sameSite: 'lax' });
         }
         next();
     }
@@ -66,15 +66,33 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
+        // Nova rota para permitir cancelar a criação do perfil e voltar ao início
+        app.get('/logout', (req, res) => {
+            const userId = req.cookies.userId;
+            if (userId) {
+                gameData.leaveRoom(userId);
+                gameData.removePlayer(userId);
+            }
+            res.clearCookie('userId');
+            res.redirect('/');
+        });
+
         app.post('/login', (req, res) => {
             const name = req.body.name?.trim();
+            const currentUserId = req.cookies.userId;
+
             if (name) {
                 const existingPlayer = gameData.getAllPlayers().find(p => p.name.toLowerCase() === name.toLowerCase());
+                
                 if (existingPlayer) {
-                    res.cookie('userId', existingPlayer.id, { maxAge: 900000, httpOnly: true });
+                    if (existingPlayer.id !== currentUserId && existingPlayer.online) {
+                        return res.render('login-view', { error: 'Este nome já está em uso em outra sessão.' });
+                    }
+                    res.cookie('userId', existingPlayer.id, { maxAge: 900000, httpOnly: true, sameSite: 'lax' });
                     return res.redirect('/');
                 }
-                gameData.addPlayer(req.cookies.userId, name);
+
+                gameData.addPlayer(currentUserId, name);
                 return res.redirect('/choose-icon');
             }
             res.redirect('/');
@@ -117,10 +135,15 @@ export default function init(gameServices, gameData, io) {
             const code = req.body.code?.trim().toUpperCase();
             const room = gameData.getRoom(code);
             if (!room) return res.redirect('/room/join?error=Código inválido');
+            
             const currentPlayer = gameData.getPlayer(req.cookies.userId);
-            if (gameData.getAllPlayersInRoom(code).some(p => p.name.toLowerCase() === currentPlayer.name.toLowerCase() && p.id !== currentPlayer.id)) {
-                return res.redirect('/room/join?error=Nome já em uso');
+            if (!currentPlayer) return res.redirect('/');
+
+            const playersInRoom = gameData.getAllPlayersInRoom(code);
+            if (playersInRoom.some(p => p.name.toLowerCase() === currentPlayer.name.toLowerCase() && p.id !== currentPlayer.id)) {
+                return res.redirect('/room/join?error=Nome já em uso nesta sala');
             }
+
             gameData.joinRoom(req.cookies.userId, code);
             broadcastSync(code, 'player_update');
             res.redirect('/');

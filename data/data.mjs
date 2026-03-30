@@ -7,7 +7,8 @@ export default function init() {
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
         createRoom, getRoom, getAllRooms, joinRoom, leaveRoom, updateRoomStatus, updateRoomConfigs,
-        addThemeSuggestion, getThemeSuggestions, resetRoomRound, softResetRoom, setPlayerOnline
+        addThemeSuggestion, getThemeSuggestions, resetRoomRound, softResetRoom, setPlayerOnline,
+        removePlayer // Nova função adicionada
     };
 
     function addPlayer(userId, name, pfp = null) {
@@ -19,6 +20,10 @@ export default function init() {
         const newPlayer = { id: userId, name, score: 0, roomId: null, pfp, online: true };
         players.set(userId, newPlayer);
         return newPlayer;
+    }
+
+    function removePlayer(id) {
+        players.delete(id);
     }
 
     function setPlayerOnline(id, status) { if(players.has(id)) players.get(id).online = status; }
@@ -91,7 +96,6 @@ export default function init() {
         if (!r) return;
         r.status = status;
         const now = Date.now();
-        // Timers are now the primary drivers of game flow
         if (status === 'THEME_SUBMISSION') r.timerExpiresAt = now + (r.configs.suggestionTime * 60000);
         else if (status === 'THEME_VOTING') r.timerExpiresAt = now + 30000;
         else if (status === 'THEME_WINNER') r.timerExpiresAt = now + 5000;
