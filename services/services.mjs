@@ -6,6 +6,7 @@ export default function init(gameData) {
         
         startThemeVote: async (roomCode) => {
             const room = gameData.getRoom(roomCode);
+            if (!room) return;
             let pool = gameData.getThemeSuggestions(roomCode);
             if (pool.length < 2) pool = [...pool, ...defaultThemes.sort(() => 0.5 - Math.random()).slice(0, 2)];
             room.themeBallot = pool.sort(() => 0.5 - Math.random()).slice(0, 2);
@@ -17,13 +18,15 @@ export default function init(gameData) {
             if (!room) return;
             const counts = {};
             room.themeBallot.forEach(t => counts[t] = 0);
-            room.themeVotes.forEach(t => counts[t]++);
+            room.themeVotes.forEach((theme, userId) => {
+                if (counts[theme] !== undefined) counts[theme]++;
+            });
             
             const [tA, tB] = room.themeBallot;
             const vencedor = counts[tA] >= (counts[tB] || 0) ? tA : tB;
             
             room.currentTheme = vencedor;
-            room.themePool.delete(vencedor); // Remover tema da lista para não repetir
+            room.themePool.delete(vencedor); 
             gameData.updateRoomStatus(roomCode, 'THEME_WINNER');
         },
 
@@ -47,13 +50,14 @@ export default function init(gameData) {
 
         advanceRound: async (roomCode) => {
             const room = gameData.getRoom(roomCode);
-            // Previne o avanço da ronda se a sala não existir ou tiver retornado ao LOBBY
             if (!room || room.status === 'LOBBY') return;
             if (room.round < room.configs.rounds) {
                 gameData.resetRoomRound(roomCode);
                 room.round += 1;
                 gameData.updateRoomStatus(roomCode, 'THEME_SUBMISSION');
-            } else gameData.updateRoomStatus(roomCode, 'FINAL_RANKING');
+            } else {
+                gameData.updateRoomStatus(roomCode, 'FINAL_RANKING');
+            }
         },
 
         obterResultadosGlobais: async (roomCode) => {
@@ -68,7 +72,7 @@ export default function init(gameData) {
                 Object.entries(voteCounts).forEach(([id, count]) => {
                     if (count === max) {
                         const g = room.gifs.get(id);
-                        winners.push({ url: g.url, dono: g.dono, votos: count });
+                        if (g) winners.push({ url: g.url, dono: g.dono, votos: count });
                     }
                 });
             }

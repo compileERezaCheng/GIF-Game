@@ -6,7 +6,7 @@ export default function init() {
 
     return {
         addPlayer, getPlayer, getAllPlayers, getAllPlayersInRoom, updatePlayerScore,
-        createRoom, getRoom, joinRoom, leaveRoom, updateRoomStatus, updateRoomConfigs,
+        createRoom, getRoom, getAllRooms, joinRoom, leaveRoom, updateRoomStatus, updateRoomConfigs,
         addThemeSuggestion, getThemeSuggestions, resetRoomRound, softResetRoom, setPlayerOnline
     };
 
@@ -24,6 +24,7 @@ export default function init() {
     function setPlayerOnline(id, status) { if(players.has(id)) players.get(id).online = status; }
     function getPlayer(id) { return players.get(id); }
     function getAllPlayers() { return Array.from(players.values()); }
+    function getAllRooms() { return Array.from(rooms.values()); }
 
     function getAllPlayersInRoom(code) {
         const room = rooms.get(code);
@@ -69,7 +70,6 @@ export default function init() {
                 if (rem.length) room.hostId = rem[0]; else rooms.delete(code);
             }
             
-            // Regra: Se a sala tiver menos de 2 jogadores durante o jogo, volta para o lobby
             if (rooms.has(code) && room.playersIds.size < 2 && room.status !== 'LOBBY') {
                 softResetRoom(code);
             }
@@ -91,10 +91,12 @@ export default function init() {
         if (!r) return;
         r.status = status;
         const now = Date.now();
+        // Timers are now the primary drivers of game flow
         if (status === 'THEME_SUBMISSION') r.timerExpiresAt = now + (r.configs.suggestionTime * 60000);
         else if (status === 'THEME_VOTING') r.timerExpiresAt = now + 30000;
         else if (status === 'THEME_WINNER') r.timerExpiresAt = now + 5000;
         else if (status === 'GIF_SUBMISSION') r.timerExpiresAt = now + (r.configs.submissionTime * 60000);
+        else if (status === 'GIF_VOTING') r.timerExpiresAt = now + 45000;
         else if (status === 'RESULTS') r.timerExpiresAt = now + 15000;
         else r.timerExpiresAt = null;
     }

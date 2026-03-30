@@ -21,7 +21,6 @@ export default function init(gameServices, gameData, io) {
 
     function setupRoutes(app) {
         
-        // --- NAVEGAÇÃO PRINCIPAL ---
         app.get('/', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
@@ -67,7 +66,6 @@ export default function init(gameServices, gameData, io) {
             }
         });
 
-        // --- LOGIN E RECONEXÃO ---
         app.post('/login', (req, res) => {
             const name = req.body.name?.trim();
             if (name) {
@@ -82,7 +80,6 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- PERFIL E ICONES ---
         app.get('/choose-icon', (req, res) => {
             const player = gameData.getPlayer(req.cookies.userId);
             if (!player) return res.redirect('/');
@@ -107,7 +104,6 @@ export default function init(gameServices, gameData, io) {
             res.redirect(req.body.redirect || '/');
         });
 
-        // --- SALAS ---
         app.get('/room/create', (req, res) => res.render('room-create-view'));
         app.get('/room/join', (req, res) => res.render('room-join-view', { error: req.query.error }));
 
@@ -137,55 +133,19 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- CONTROLO DE PARTIDA ---
         app.post('/game/start', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);
             if (player?.roomId) {
                 const room = gameData.getRoom(player.roomId);
                 if (String(room.hostId) === String(userId)) {
-                    // Impede o início de partida se não existirem pelo menos 2 jogadores
-                    if (room.playersIds.size < 2) {
-                        return res.redirect('/'); 
-                    }
-                    
+                    if (room.playersIds.size < 2) return res.redirect('/'); 
                     gameData.updateRoomConfigs(player.roomId, req.body);
                     gameData.updateRoomStatus(player.roomId, 'THEME_SUBMISSION');
                     broadcastSync(player.roomId, 'state_update');
                 }
             }
             res.redirect('/');
-        });
-
-        app.post('/game/next-round', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
-                    await gameServices.advanceRound(room.code);
-                    broadcastSync(room.code, 'state_update');
-                    return res.json({ success: true });
-                }
-            }
-            res.status(403).json({ success: false });
-        });
-
-        app.post('/game/auto-advance', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId)) {
-                    if (room.status === 'THEME_WINNER') {
-                        gameData.updateRoomStatus(room.code, 'GIF_SUBMISSION');
-                    } else if (room.status === 'RESULTS') {
-                        await gameServices.advanceRound(room.code);
-                    }
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
         });
 
         app.post('/game/restart', async (req, res) => {
@@ -201,34 +161,6 @@ export default function init(gameServices, gameData, io) {
             res.redirect('/');
         });
 
-        // --- FINALIZAÇÃO AUTOMÁTICA DE FASES ---
-        app.post('/theme/auto-finish', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId) && room.status === 'THEME_SUBMISSION') {
-                    await gameServices.startThemeVote(room.code);
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
-        });
-
-        app.post('/theme/vote-auto-finish', async (req, res) => {
-            const userId = req.cookies.userId;
-            const player = gameData.getPlayer(userId);
-            if (player?.roomId) {
-                const room = gameData.getRoom(player.roomId);
-                if (String(room.hostId) === String(userId) && room.status === 'THEME_VOTING') {
-                    await gameServices.finishThemeVote(room.code);
-                    broadcastSync(room.code, 'state_update');
-                }
-            }
-            res.json({ success: true });
-        });
-
-        // --- SUBMISSÕES E VOTOS ---
         app.post('/theme/submit', async (req, res) => {
             const userId = req.cookies.userId;
             const player = gameData.getPlayer(userId);

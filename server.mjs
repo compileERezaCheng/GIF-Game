@@ -45,6 +45,46 @@ const webSite = SiteInit(gameServices, gameData, io);
 app.use(webSite.sessionMiddleware);
 webSite.setupRoutes(app);
 
+// --- SERVER-SIDE GAME TICKER ---
+// This loop runs every second to check if any room timers have expired.
+// This removes reliance on host-side timing.
+setInterval(async () => {
+    const now = Date.now();
+    const rooms = gameData.getAllRooms();
+
+    for (const room of rooms) {
+        if (room.timerExpiresAt && now >= room.timerExpiresAt) {
+            console.log(`[Auto-Advance] Room ${room.code} moving from ${room.status}`);
+            
+            try {
+                if (room.status === 'THEME_SUBMISSION') {
+                    await gameServices.startThemeVote(room.code);
+                } 
+                else if (room.status === 'THEME_VOTING') {
+                    await gameServices.finishThemeVote(room.code);
+                } 
+                else if (room.status === 'THEME_WINNER') {
+                    gameData.updateRoomStatus(room.code, 'GIF_SUBMISSION');
+                } 
+                else if (room.status === 'GIF_SUBMISSION') {
+                    gameData.updateRoomStatus(room.code, 'GIF_VOTING');
+                } 
+                else if (room.status === 'GIF_VOTING') {
+                    gameData.updateRoomStatus(room.code, 'RESULTS');
+                } 
+                else if (room.status === 'RESULTS') {
+                    await gameServices.advanceRound(room.code);
+                }
+
+                // Push new state to all clients in the room
+                webSite.broadcastSync(room.code, 'state_update');
+            } catch (err) {
+                console.error(`Error auto-advancing room ${room.code}:`, err);
+            }
+        }
+    }
+}, 1000);
+
 io.on('connection', (socket) => {
     const cookieHeader = socket.request.headers.cookie;
     let userId = null;
